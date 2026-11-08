@@ -112,6 +112,7 @@ The plugin talks to your Seerr instance only. It checks it every `refreshInterva
 ```bash
 node tests/run.js                       # model tests
 node dev/mock-seerr.js                  # fake Seerr on http://127.0.0.1:5055, key devkey1234567890
+node dev/mock-seerr.js --hostile        # plus markup in a title and a user name, and a bad poster path
 curl -X POST 'http://127.0.0.1:5055/__mock/new?type=tv'   # a new pending request
 docker compose -f dev/compose.yaml up -d                  # a real Seerr, Jellyfin, Radarr, Sonarr
 ```

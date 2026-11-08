@@ -3,7 +3,12 @@
 // returns (seerr-api.yml and server/routes/*.ts), for developing the plugin
 // without a Seerr instance.
 //
-//   node dev/mock-seerr.js [--port 5055] [--key devkey123456]
+//   node dev/mock-seerr.js [--port 5055] [--key devkey123456] [--hostile]
+//
+// It starts with one pending request and one request in each other status
+// (processing, partially available, available, declined, failed). --hostile
+// adds data that must stay inert: markup in a title and a user name, and a
+// poster path that tries to leave TMDB.
 //
 // Extra endpoints to drive it while testing:
 //   POST /__mock/new?type=movie|tv[&tmdb=ID][&user=N][&4k=1]
@@ -23,6 +28,7 @@ const opt = (name, fallback) => {
 }
 const PORT = Number(opt("port", 5055))
 const KEY = opt("key", "devkey1234567890")
+const HOSTILE = args.includes("--hostile")
 
 let latency = 0
 let broken = 0
@@ -30,7 +36,7 @@ let broken = 0
 const users = {
   1: { id: 1, displayName: "Admin", email: "admin@example.com", permissions: 2, userType: 3 },
   3: { id: 3, displayName: "Alice", email: "alice@example.com", permissions: 32, userType: 3 },
-  4: { id: 4, displayName: "Bob <b>bold</b>", email: "bob@example.com", permissions: 32, userType: 3 },
+  4: { id: 4, displayName: HOSTILE ? "Bob <b>bold</b>" : "Bob", email: "bob@example.com", permissions: 32, userType: 3 },
   5: { id: 5, displayName: "Carol", email: "carol@example.com", permissions: 32, userType: 3 }
 }
 
@@ -58,7 +64,8 @@ const catalog = {
     seasons: [{ seasonNumber: 1, name: "East Blue", episodeCount: 61 }, { seasonNumber: 2, name: "Alabasta", episodeCount: 77 }],
     overview: "Monkey D. Luffy sets off on an adventure with his pirate crew." }
 }
-const pool = [["movie", 693134], ["movie", 27205], ["movie", 603], ["movie", 550], ["tv", 1399], ["tv", 1396], ["tv", 37854]]
+const pool = [["movie", 693134], ["movie", 27205], ["movie", 603], ["tv", 1399], ["tv", 1396], ["tv", 37854]]
+if (HOSTILE) pool.push(["movie", 550])
 
 const radarr = [
   { id: 0, name: "Radarr", is4k: false, isDefault: true, activeDirectory: "/movies", activeProfileId: 4, activeTags: [1] },
@@ -92,27 +99,33 @@ function mediaFor(type, tmdbId) {
   return media[key]
 }
 
+// opts: ageMin (since the request), status (request), mediaStatus (of the
+// media, or its 4K side for a 4K request), handledMin (since an admin acted
+// on it), seasons, is4k.
 function addRequest(type, tmdbId, userId, opts = {}) {
-  const now = new Date(Date.now() - (opts.ageMin || 0) * 60000).toISOString()
+  const ago = min => new Date(Date.now() - min * 60000).toISOString()
+  const status = opts.status || 1
   const m = mediaFor(type, tmdbId)
   const req = {
-    id: nextId++, status: opts.status || 1, createdAt: now, updatedAt: now, type, is4k: !!opts.is4k,
+    id: nextId++, status, createdAt: ago(opts.ageMin || 0), updatedAt: ago(status === 1 ? opts.ageMin || 0 : opts.handledMin || 0),
+    type, is4k: !!opts.is4k,
     serverId: null, profileId: null, rootFolder: null, languageProfileId: null, tags: null, isAutoRequest: false,
     media: m, seasons: type === "tv" ? (opts.seasons || [1]).map((n, i) => ({ id: i + 1, seasonNumber: n, status: 2 })) : [],
-    modifiedBy: opts.status && opts.status !== 1 ? users[1] : null, requestedBy: users[userId]
+    modifiedBy: status !== 1 ? users[1] : null, requestedBy: users[userId]
   }
-  if (req.status === 2 || req.status === 5) m.status = opts.available ? 5 : 3
+  if (opts.mediaStatus) m[req.is4k ? "status4k" : "status"] = opts.mediaStatus
   requests.push(req)
   return req
 }
 
-addRequest("movie", 693134, 3, { ageMin: 5 })
-addRequest("tv", 1399, 4, { ageMin: 90, seasons: [6, 7, 8], is4k: false })
-addRequest("tv", 37854, 5, { ageMin: 60 * 26, seasons: [1, 2] })
-addRequest("movie", 550, 4, { ageMin: 60 * 50 })
-addRequest("movie", 27205, 3, { ageMin: 60 * 24 * 5, status: 2, available: true })
-addRequest("movie", 603, 5, { ageMin: 60 * 24 * 40, status: 3 })
-addRequest("tv", 1396, 3, { ageMin: 60 * 24 * 3, status: 2, seasons: [1, 2, 3, 4, 5] })
+// One request per status the panel tells apart, newest first.
+addRequest("movie", 693134, 3, { ageMin: 5 })                                                          // pending
+addRequest("tv", 1396, 5, { ageMin: 60 * 3, status: 2, mediaStatus: 3, handledMin: 60 * 2, seasons: [1, 2, 3, 4, 5] }) // processing
+addRequest("tv", 1399, 4, { ageMin: 60 * 26, status: 2, mediaStatus: 4, handledMin: 60 * 20, seasons: [1, 2, 3, 4, 5, 6, 7, 8] }) // partially available
+addRequest("movie", 27205, 3, { ageMin: 60 * 24 * 3, status: 2, mediaStatus: 5, handledMin: 60 * 24 * 2, is4k: true }) // available, 4K
+addRequest("movie", 603, 5, { ageMin: 60 * 24 * 5, status: 3, handledMin: 60 * 24 * 5 })               // declined
+addRequest("tv", 37854, 4, { ageMin: 60 * 24 * 8, status: 4, handledMin: 60 * 24 * 7, seasons: [1, 2] }) // failed
+if (HOSTILE) addRequest("movie", 550, 4, { ageMin: 30 })
 // New requests get ids a restarted mock has never handed out, as a real Seerr
 // never reuses one; otherwise the plugin would take them for already seen.
 nextId = Math.max(nextId, Math.floor(Date.now() / 1000) % 1000000)
@@ -191,7 +204,8 @@ const server = http.createServer(async (req, res) => {
     for (const r of requests) {
       c[r.type]++
       if (r.status === 1) c.pending++
-      if (r.status === 2) { c.approved++; if (r.media.status === 5) c.available++; else c.processing++ }
+      const mediaStatus = r.is4k ? r.media.status4k : r.media.status
+      if (r.status === 2) { c.approved++; if (mediaStatus === 5) c.available++; else c.processing++ }
       if (r.status === 3) c.declined++
       if (r.status === 5) c.completed++
     }
@@ -205,7 +219,7 @@ const server = http.createServer(async (req, res) => {
     const by = q.get("requestedBy") ? Number(q.get("requestedBy")) : null
     const field = q.get("sort") === "modified" ? "updatedAt" : "createdAt"
     const dir = q.get("sortDirection") === "asc" ? 1 : -1
-    let list = requests.filter(r => sf.includes(r.status) && mf.includes(r.media.status) && (type === "all" || r.type === type) && (!by || r.requestedBy.id === by))
+    let list = requests.filter(r => sf.includes(r.status) && mf.includes(r.is4k ? r.media.status4k : r.media.status) && (type === "all" || r.type === type) && (!by || r.requestedBy.id === by))
     list.sort((a, b) => dir * (Date.parse(a[field]) - Date.parse(b[field])))
     return send(res, 200, { pageInfo: { pages: Math.ceil(list.length / take), pageSize: take, results: list.length, page: Math.floor(skip / take) + 1 }, results: list.slice(skip, skip + take) })
   }
