@@ -236,6 +236,8 @@ Item {
     if (res.error === "timeout") return t("error.timeout")
     if (res.error === "network") return t("error.network")
     if (res.error === "badJson" || res.error === "tooLarge") return t("error.badResponse")
+    if (res.error === "tls") return t("error.tls")
+    if (res.error === "redirect") return res.location ? t("error.redirectTo").arg(res.location) : t("error.redirect")
     if (res.status === 401 || res.status === 403) return t("error.unauthorized")
     if (res.status === 404) return t("error.notFound")
     if (res.status === 409) return res.message || t("error.conflict")
@@ -351,66 +353,91 @@ Item {
   // ---------------------------------------------------------------- HTTP
 
   property int _generation: 0
+  // Calls waiting for a slot, and calls whose curl is running.
+  property var _queue: []
   property var _inflight: []
-  readonly property int requestTimeoutMs: 15000
+  readonly property int maxParallel: 6
+  readonly property int requestTimeoutSec: 15
 
-  // cb({ ok, status, data, error, message }). Callbacks from a superseded
-  // connection (URL or key changed meanwhile) are dropped.
+  // cb({ ok, status, data, error, message, location }). Callbacks from a
+  // superseded connection (URL or key changed meanwhile) are dropped. The
+  // request runs through curl, which does not follow redirects: see
+  // Seerr.curlConfig.
   function api(method, path, body, cb) {
-    // Checked against the very URL opened below.
+    // Checked against the very URL requested below.
     var target = baseUrl
     if (!keyMatches(target)) {
       cb({ ok: false, status: 0, error: "notConfigured" })
       return
     }
     var generation = _generation
-    var xhr = new XMLHttpRequest()
-    var call = { xhr: xhr, deadline: Date.now() + requestTimeoutMs, done: false, finish: null }
+    var call = {
+      config: Seerr.curlConfig(method, target + Seerr.API_PREFIX + path, _apiKey, body),
+      proc: null, deadline: 0, done: false, finish: null
+    }
     call.finish = function(result) {
       if (call.done) return
       call.done = true
+      call.config = ""
       var at = root._inflight.indexOf(call)
       if (at !== -1) root._inflight.splice(at, 1)
+      Qt.callLater(root.pump)
       if (generation !== root._generation) return
       cb(result)
     }
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState !== XMLHttpRequest.DONE || call.done) return
-      var status = xhr.status
-      var parsed = Seerr.parseJson(String(xhr.responseText || ""))
-      if (status >= 200 && status < 300) {
-        if (!parsed.ok) call.finish({ ok: false, status: status, error: parsed.error })
-        else call.finish({ ok: true, status: status, data: parsed.value })
-      } else {
-        call.finish({
-          ok: false, status: status,
-          error: status === 0 ? "network" : "http",
-          message: parsed.ok ? Seerr.errorMessage(parsed.value) : ""
-        })
-      }
-    }
-    xhr.open(method, target + Seerr.API_PREFIX + path)
-    xhr.setRequestHeader("X-Api-Key", _apiKey)
-    xhr.setRequestHeader("Accept", "application/json")
-    _inflight.push(call)
-    watchdog.running = true
-    if (body !== null && body !== undefined) {
-      xhr.setRequestHeader("Content-Type", "application/json")
-      xhr.send(JSON.stringify(body))
-    } else {
-      xhr.send()
+    _queue.push(call)
+    pump()
+  }
+
+  // Starts queued calls while there is room.
+  function pump() {
+    while (_inflight.length < maxParallel && _queue.length > 0) {
+      var call = _queue.shift()
+      if (call.done) continue
+      call.deadline = Date.now() + (requestTimeoutSec + 5) * 1000
+      call.proc = curlProcess.createObject(root, { call: call, command: Seerr.curlArgv(requestTimeoutSec) })
+      if (!call.proc) { call.finish({ ok: false, status: 0, error: "network" }); continue }
+      _inflight.push(call)
+      call.proc.running = true
+      watchdog.running = true
     }
   }
 
   function abortAll() {
+    var queued = _queue
+    _queue = []
+    for (var i = 0; i < queued.length; i++) queued[i].done = true
     var calls = _inflight.slice()
     _inflight = []
-    for (var i = 0; i < calls.length; i++) {
-      calls[i].done = true
-      try { calls[i].xhr.abort() } catch (e) {}
+    for (var j = 0; j < calls.length; j++) {
+      calls[j].done = true
+      calls[j].config = ""
+      if (calls[j].proc) calls[j].proc.running = false
     }
   }
 
+  Component {
+    id: curlProcess
+    Process {
+      id: proc
+      property var call: null
+      stdinEnabled: true
+      stdout: StdioCollector { id: curlOut; waitForEnd: true }
+      onStarted: {
+        // The config, key included, goes in on stdin; closing it ends the read.
+        if (proc.call && !proc.call.done) write(proc.call.config)
+        proc.stdinEnabled = false
+      }
+      onExited: function(code) {
+        var call = proc.call
+        proc.call = null
+        if (call) call.finish(Seerr.parseCurlResult(code, String(curlOut.text || "")))
+        Qt.callLater(function() { proc.destroy() })
+      }
+    }
+  }
+
+  // curl has its own --max-time; this only catches a process that never ends.
   Timer {
     id: watchdog
     interval: 1000
@@ -420,7 +447,7 @@ Item {
       var calls = root._inflight.slice()
       for (var i = 0; i < calls.length; i++) {
         if (calls[i].deadline > now) continue
-        try { calls[i].xhr.abort() } catch (e) {}
+        if (calls[i].proc) calls[i].proc.running = false
         calls[i].finish({ ok: false, status: 0, error: "timeout" })
       }
       if (root._inflight.length === 0) watchdog.running = false

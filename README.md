@@ -41,6 +41,8 @@ A key that cannot manage requests (neither admin nor *Manage Requests*) still li
 
 **HTTP or HTTPS** both work. The panel warns when plain HTTP points outside your local network, since the key then travels unencrypted. For HTTPS, the certificate must be valid (self-signed certificates are refused).
 
+**Redirects are not followed.** Requests go through `curl` without `-L`, so a redirect (an HTTP to HTTPS upgrade, an authentication portal in front of Seerr, a moved instance) never carries the key to another address: the panel shows where Seerr points instead, and you can set that as the URL if it is the right one. The key reaches `curl` on stdin, not on its command line.
+
 ## Keyboard
 
 | Key | List | Details |
