@@ -1,0 +1,66 @@
+{
+  "pageInfo": { "pages": 1, "pageSize": 20, "results": 4, "page": 1 },
+  "results": [
+    {
+      "id": 12,
+      "status": 1,
+      "createdAt": "2026-11-08T10:00:00.000Z",
+      "updatedAt": "2026-11-08T10:00:00.000Z",
+      "type": "movie",
+      "is4k": false,
+      "serverId": null,
+      "profileId": null,
+      "rootFolder": null,
+      "languageProfileId": null,
+      "tags": null,
+      "isAutoRequest": false,
+      "media": { "id": 7, "mediaType": "movie", "tmdbId": 438631, "tvdbId": null, "status": 2, "status4k": 1 },
+      "seasons": [],
+      "modifiedBy": null,
+      "requestedBy": { "id": 3, "displayName": "Alice", "email": "alice@example.com", "userType": 3, "permissions": 32, "avatar": "/avatarproxy/x" },
+      "seasonCount": 0
+    },
+    {
+      "id": 11,
+      "status": 1,
+      "createdAt": "2026-11-07T09:00:00.000Z",
+      "updatedAt": "2026-11-07T09:00:00.000Z",
+      "type": "tv",
+      "is4k": true,
+      "serverId": 1,
+      "profileId": 6,
+      "rootFolder": "/tv4k",
+      "languageProfileId": 1,
+      "tags": [2, 2, "x"],
+      "media": { "id": 6, "mediaType": "tv", "tmdbId": 1399, "tvdbId": 121361, "status": 1, "status4k": 2 },
+      "seasons": [{ "id": 1, "seasonNumber": 3, "status": 2 }, { "id": 2, "seasonNumber": 1, "status": 2 }, { "id": 3, "seasonNumber": 2, "status": 2 }],
+      "modifiedBy": null,
+      "requestedBy": { "id": 4, "displayName": "<b>Bob</b>", "email": "bob@example.com" }
+    },
+    {
+      "id": 10,
+      "status": 2,
+      "createdAt": "2026-11-01T09:00:00.000Z",
+      "updatedAt": "2026-11-02T09:00:00.000Z",
+      "type": "movie",
+      "is4k": false,
+      "media": { "id": 5, "mediaType": "movie", "tmdbId": 27205, "status": 5, "status4k": 1 },
+      "seasons": [],
+      "modifiedBy": { "id": 1, "displayName": "Admin" },
+      "requestedBy": { "id": 3, "displayName": "Alice" }
+    },
+    {
+      "id": 9,
+      "status": 3,
+      "createdAt": "2026-10-01T09:00:00.000Z",
+      "updatedAt": "2026-10-02T09:00:00.000Z",
+      "type": "movie",
+      "is4k": false,
+      "media": { "id": 4, "mediaType": "movie", "tmdbId": 603, "status": 1, "status4k": 1 },
+      "seasons": [],
+      "requestedBy": { "id": 5, "username": "carol" }
+    },
+    { "id": "nope" },
+    null
+  ]
+}
