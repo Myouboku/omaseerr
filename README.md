@@ -1,5 +1,3 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
-
 # OmaSeerr
 
 [Seerr](https://github.com/seerr-team/seerr) media requests in the [Omarchy](https://omarchy.org) bar.
