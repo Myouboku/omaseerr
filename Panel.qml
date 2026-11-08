@@ -1350,11 +1350,18 @@ Panel {
           Layout.fillWidth: true
           spacing: Style.space(6)
           PlainText {
+            id: rowTitle
             Layout.fillWidth: true
+            Layout.maximumWidth: rowTitle.implicitWidth
             text: row.req && root.svc ? root.svc.titleFor(row.req) : ""
             elide: Text.ElideRight
           }
-          Tag { visible: !!row.req && row.req.is4k; text: "4K" }
+          Tag {
+            visible: !!row.req && row.req.is4k
+            Layout.alignment: Qt.AlignVCenter
+            text: "4K"
+          }
+          Item { Layout.fillWidth: true }
         }
         PlainText {
           Layout.fillWidth: true
