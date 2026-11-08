@@ -15,6 +15,15 @@
 - **Everything is configurable** from the panel's settings (gear icon) or `shell.json`.
 - English and French; follows the language chosen in Omarchy.
 
+## Requirements
+
+- [Omarchy](https://omarchy.org) with its shell, which provides the bar, the panel, notifications (`omarchy-notification-send`) and IPC (`omarchy-shell`).
+- `secret-tool` (package `libsecret`) and a Secret Service provider such as gnome-keyring or KeePassXC, to keep the API key.
+- `curl` and `bash`, for API calls and poster downloads.
+- A [Seerr](https://github.com/seerr-team/seerr) instance and its API key. Network access to `image.tmdb.org` for posters, unless both poster settings are off.
+
+Omarchy ships all of these except Seerr; nothing else is installed.
+
 ## Install
 
 ```bash
@@ -42,6 +51,14 @@ A key that cannot manage requests (neither admin nor *Manage Requests*) still li
 **HTTP or HTTPS** both work. The panel warns when plain HTTP points outside your local network, since the key then travels unencrypted. For HTTPS, the certificate must be valid (self-signed certificates are refused).
 
 **Redirects are not followed.** Requests go through `curl` without `-L`, so a redirect (an HTTP to HTTPS upgrade, an authentication portal in front of Seerr, a moved instance) never carries the key to another address: the panel shows where Seerr points instead, and you can set that as the URL if it is the right one. The key reaches `curl` on stdin, not on its command line.
+
+### Remove
+
+```bash
+omarchy plugin remove myouboku.omaseerr
+secret-tool clear service myouboku.omaseerr account api-key   # the stored API key(s)
+rm -rf ~/.local/state/omaseerr ~/.cache/omaseerr              # seen request ids, cached posters
+```
 
 ## Keyboard
 
@@ -128,3 +145,7 @@ Link the checkout as a plugin with `ln -s "$PWD" ~/.config/omarchy/plugins/myoub
 | `i18n/*.json` | translations |
 | `tests/` | `node` tests for the model |
 | `dev/` | fake Seerr and a Docker stack with a real one |
+
+## License
+
+[MIT](LICENSE). OmaSeerr is not affiliated with Seerr, Omarchy or TMDB. Posters are loaded from TMDB and belong to their owners.
