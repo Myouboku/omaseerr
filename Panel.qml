@@ -1251,7 +1251,7 @@ Panel {
         SettingToggle { key: "showPosters"; label: root.t("settings.showPosters"); description: root.t("settings.showPostersHelp") }
         SettingToggle { key: "showBadge"; label: root.t("settings.showBadge") }
         SettingToggle { key: "badgeWhenEmpty"; label: root.t("settings.badgeWhenEmpty") }
-        SettingToggle { key: "confirmDecline"; label: root.t("cfg.confirmDecline") }
+        SettingToggle { key: "confirmDecline"; label: root.t("settings.confirmDecline") }
       }
     }
 
