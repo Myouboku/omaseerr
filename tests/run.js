@@ -33,6 +33,23 @@ test("normalizeBaseUrl refuses other schemes and junk", () => {
   eq(S.normalizeBaseUrl(null).ok, false)
 })
 
+test("keyOrigin keeps scheme, host and port only", () => {
+  eq(S.keyOrigin("https://seerr.example.com/"), "https://seerr.example.com")
+  eq(S.keyOrigin("https://Host.Example/seerr/api/v1"), "https://host.example")
+  eq(S.keyOrigin("https://host.example:443/seerr"), "https://host.example")
+  eq(S.keyOrigin("http://host.example:80"), "http://host.example")
+  eq(S.keyOrigin("http://192.168.1.10:5055"), "http://192.168.1.10:5055")
+  eq(S.keyOrigin("https://host.example:80"), "https://host.example:80")
+  eq(S.keyOrigin("http://[::1]:5055"), "http://[::1]:5055")
+  eq(S.keyOrigin("seerr.lan"), "https://seerr.lan")
+  // Same host, other scheme or port: another origin, so another key.
+  eq(S.keyOrigin("http://seerr.lan") === S.keyOrigin("https://seerr.lan"), false)
+  eq(S.keyOrigin("https://seerr.lan:5055") === S.keyOrigin("https://seerr.lan"), false)
+  eq(S.keyOrigin(""), "")
+  eq(S.keyOrigin("ftp://host"), "")
+  eq(S.keyOrigin("https://user:pass@host"), "")
+})
+
 test("isPrivateHost", () => {
   for (const u of ["http://localhost:5055", "http://127.0.0.1", "http://192.168.1.2:5055", "http://10.0.0.3", "http://172.20.1.1",
     "http://seerr.lan", "http://nas.local", "http://seerr", "http://[::1]:5055", "http://100.101.102.103"]) eq([u, S.isPrivateHost(u)], [u, true])

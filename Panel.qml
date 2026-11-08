@@ -1181,8 +1181,8 @@ Panel {
                 + (root.svc.canManage ? "" : "  —  " + root.t("settings.noManage"))
             if (root.svc.connection === "connecting") return root.t("bar.connecting")
             if (root.svc.connection === "error") return root.svc.lastError
-            if (root.svc.keyState === "missing") return root.t("settings.noKey")
             if (!root.svc.baseUrl) return root.t("settings.noUrl")
+            if (root.svc.keyState === "missing") return root.t("settings.noKey")
             return ""
           }
           color: !!root.svc && (root.svc.connection === "error" || root.svc.keyMessage !== "" || (root.svc.connection === "connected" && !root.svc.canManage)) ? root.urgent : root.dim

@@ -25,11 +25,16 @@ Then click the icon: the panel opens on its settings. Enter the Seerr URL (`http
 
 ### The API key
 
-The key is kept in your keyring through the Secret Service (`secret-tool`, which gnome-keyring or KeePassXC provide), under `service=myouboku.omaseerr account=api-key`. It never goes into `shell.json`, a file, or a command line. To manage it by hand:
+The key is kept in your keyring through the Secret Service (`secret-tool`, which gnome-keyring or KeePassXC provide), under `service=myouboku.omaseerr account=api-key origin=<scheme://host[:port]>`. It never goes into `shell.json`, a file, or a command line.
+
+The key is bound to the origin of the Seerr URL it was saved for, and is only ever sent there. Pointing the plugin at another scheme, host or port (a typo, a copied `shell.json`, `omarchy-shell … set url`) does not carry the key along: the panel asks for the key of the new address. The path and the scheme's default port do not count, so `https://seerr.example.com/seerr` uses the key of `https://seerr.example.com`.
+
+To manage it by hand:
 
 ```bash
-secret-tool store --label="OmaSeerr (Seerr API key)" service myouboku.omaseerr account api-key   # paste, then Ctrl+D
+secret-tool store --label="OmaSeerr (Seerr API key)" service myouboku.omaseerr account api-key origin https://seerr.example.com   # paste, then Ctrl+D
 omarchy-shell myouboku.omaseerr reloadKey
+secret-tool clear service myouboku.omaseerr account api-key   # every stored key, all origins
 ```
 
 A key that cannot manage requests (neither admin nor *Manage Requests*) still lists them, but the approve and decline actions are hidden.

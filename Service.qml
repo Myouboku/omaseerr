@@ -30,6 +30,8 @@ Item {
     : (shell && shell.barConfig ? Seerr.findBarEntry(shell.barConfig, pluginId) : null)
   readonly property var settings: Seerr.normalizeSettings(entry || {})
   readonly property string baseUrl: settings.url
+  // Where the API key may go: the keyring holds one key per origin.
+  readonly property string keyOrigin: Seerr.keyOrigin(baseUrl)
   readonly property bool insecure: baseUrl.indexOf("http://") === 0
   // Plain HTTP to something outside the local network: worth a warning.
   readonly property bool exposed: insecure && !Seerr.isPrivateHost(baseUrl)
@@ -69,6 +71,17 @@ Item {
   property string keyState: "loading"
   property string keyMessage: ""
   property string _apiKey: ""
+  // The origin _apiKey was read for. The key is only sent to a URL of that
+  // origin, so a URL change can never carry it to another server.
+  property string _keyOrigin: ""
+  property bool _keyReloadQueued: false
+  // Whether the key may go to `url`. Computed from the URL itself, never from
+  // the keyOrigin binding: during a URL change, onBaseUrlChanged can run
+  // before that binding catches up, and the old key would leave for the new
+  // server.
+  function keyMatches(url) {
+    return keyState === "ok" && _apiKey !== "" && _keyOrigin !== "" && !!url && Seerr.keyOrigin(url) === _keyOrigin
+  }
   property string _pendingKey: ""
 
   // Panels open across monitors; while any is, the list follows each poll.
@@ -143,6 +156,8 @@ Item {
   }
 
   onBaseUrlChanged: reconnect()
+  // Another server: its key, or none, never the previous one's.
+  onKeyOriginChanged: loadKey()
 
   // A language switch changes the titles Seerr hands back.
   Connections {
@@ -190,7 +205,7 @@ Item {
     _listSkip = 0
     media = ({})
     mediaRevision++
-    if (!baseUrl || keyState !== "ok") {
+    if (!keyMatches(baseUrl)) {
       connection = "unconfigured"
       lastError = ""
       return
@@ -233,42 +248,66 @@ Item {
     return /^[A-Za-z0-9+\/=_-]{8,256}$/.test(String(key || ""))
   }
 
+  // Reads the key stored for the current origin. A lookup already running
+  // for another origin is followed by a fresh one rather than trusted.
   function loadKey() {
-    if (keyLookup.running) return
+    if (keyLookup.running) { _keyReloadQueued = true; return }
+    _keyReloadQueued = false
+    _apiKey = ""
+    _keyOrigin = ""
+    if (!keyOrigin) {
+      keyState = "missing"
+      keyMessage = ""
+      reconnect()
+      return
+    }
     keyState = "loading"
+    keyLookup.origin = keyOrigin
     keyLookup.running = true
   }
 
-  // Returns false when the key is malformed; the result arrives through
-  // keyState / keyMessage.
+  // Returns false when the key is malformed or there is no URL to bind it
+  // to; the result arrives through keyState / keyMessage.
   function storeKey(key) {
     var k = String(key || "").trim()
+    if (!keyOrigin) { keyMessage = t("key.needUrl"); return false }
     if (!validKey(k)) { keyMessage = t("key.invalid"); return false }
     if (keyStore.running) return false
     _pendingKey = k
     keyMessage = ""
+    keyStore.origin = keyOrigin
     keyStore.running = true
     return true
   }
 
+  // Removes the key of the current origin only.
   function clearKey() {
-    if (keyClear.running) return
+    if (keyClear.running || !keyOrigin) return
+    keyClear.origin = keyOrigin
     keyClear.running = true
   }
 
   Process {
     id: keyLookup
-    command: ["secret-tool", "lookup", "service", Seerr.PLUGIN_ID, "account", "api-key"]
+    property string origin: ""
+    command: ["secret-tool", "lookup", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
     stdout: StdioCollector { id: keyLookupOut; waitForEnd: true }
     stderr: StdioCollector { id: keyLookupErr; waitForEnd: true }
     onExited: function(code) {
+      // The URL changed while this ran: its answer belongs to another server.
+      if (root._keyReloadQueued || keyLookup.origin !== root.keyOrigin) {
+        Qt.callLater(root.loadKey)
+        return
+      }
       var key = String(keyLookupOut.text || "").trim()
       if (code === 0 && root.validKey(key)) {
         root._apiKey = key
+        root._keyOrigin = keyLookup.origin
         root.keyState = "ok"
         root.keyMessage = ""
       } else {
         root._apiKey = ""
+        root._keyOrigin = ""
         // secret-tool exits 1 with no output when nothing is stored.
         var err = String(keyLookupErr.text || "").trim()
         root.keyState = code === 1 && err === "" && key === "" ? "missing" : "error"
@@ -281,7 +320,9 @@ Item {
   // The key travels on stdin, never in argv where /proc would show it.
   Process {
     id: keyStore
-    command: ["secret-tool", "store", "--label=OmaSeerr (Seerr API key)", "service", Seerr.PLUGIN_ID, "account", "api-key"]
+    property string origin: ""
+    command: ["secret-tool", "store", "--label=OmaSeerr (Seerr API key for " + origin + ")",
+      "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
     stdinEnabled: true
     stderr: StdioCollector { id: keyStoreErr; waitForEnd: true }
     onStarted: {
@@ -302,7 +343,8 @@ Item {
 
   Process {
     id: keyClear
-    command: ["secret-tool", "clear", "service", Seerr.PLUGIN_ID, "account", "api-key"]
+    property string origin: ""
+    command: ["secret-tool", "clear", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
     onExited: function() { root.loadKey() }
   }
 
@@ -315,7 +357,12 @@ Item {
   // cb({ ok, status, data, error, message }). Callbacks from a superseded
   // connection (URL or key changed meanwhile) are dropped.
   function api(method, path, body, cb) {
-    if (!baseUrl || !_apiKey) { cb({ ok: false, status: 0, error: "notConfigured" }); return }
+    // Checked against the very URL opened below.
+    var target = baseUrl
+    if (!keyMatches(target)) {
+      cb({ ok: false, status: 0, error: "notConfigured" })
+      return
+    }
     var generation = _generation
     var xhr = new XMLHttpRequest()
     var call = { xhr: xhr, deadline: Date.now() + requestTimeoutMs, done: false, finish: null }
@@ -342,7 +389,7 @@ Item {
         })
       }
     }
-    xhr.open(method, baseUrl + Seerr.API_PREFIX + path)
+    xhr.open(method, target + Seerr.API_PREFIX + path)
     xhr.setRequestHeader("X-Api-Key", _apiKey)
     xhr.setRequestHeader("Accept", "application/json")
     _inflight.push(call)
@@ -895,7 +942,7 @@ Item {
 
   function statusLine() {
     if (connection === "connected") return "connected pending=" + counts.pending + " total=" + counts.total
-    if (connection === "unconfigured") return keyState === "ok" ? "unconfigured: no url" : "unconfigured: no api key"
+    if (connection === "unconfigured") return !baseUrl ? "unconfigured: no url" : "unconfigured: no api key"
     return connection + (lastError ? ": " + lastError : "")
   }
 

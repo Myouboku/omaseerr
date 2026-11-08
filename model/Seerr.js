@@ -126,6 +126,19 @@ function normalizeBaseUrl(raw) {
   return { ok: true, url: url, secure: scheme === "https", error: "" }
 }
 
+// The origin (scheme, host, port) the API key is bound to in the keyring, so
+// a key saved for one Seerr is never sent to another one the URL is later
+// changed to. The path is left out (it does not change who receives the key)
+// and so is the scheme's default port. "" when the URL is not usable.
+function keyOrigin(raw) {
+  var n = normalizeBaseUrl(raw)
+  if (!n.ok) return ""
+  var m = n.url.match(/^(https?):\/\/(\[[^\]]+\]|[^/:]+)(?::(\d+))?/)
+  if (!m) return ""
+  var port = m[3] === undefined || (m[1] === "https" && m[3] === "443") || (m[1] === "http" && m[3] === "80") ? "" : ":" + m[3]
+  return m[1] + "://" + m[2] + port
+}
+
 // Loopback, RFC 1918 / link-local / CGNAT addresses and .local/.lan/.home
 // names: places where plain HTTP is a reasonable choice.
 function isPrivateHost(url) {
