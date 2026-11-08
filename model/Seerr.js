@@ -380,12 +380,24 @@ function statusKey(req) {
   return "unknown"
 }
 
-// Color role of a status, resolved to a theme color by the panel.
-function statusTone(key) {
-  if (key === "pending") return "accent"
-  if (key === "declined" || key === "failed" || key === "deleted") return "urgent"
-  if (key === "available" || key === "completed") return "good"
-  return "dim"
+// Color of a status, taken from Seerr's own badges (Tailwind: success
+// green-500, primary indigo-500, danger red-600). Waiting for a decision is the
+// normal state, so it stays neutral (Seerr shows it yellow); "" means the
+// panel's neutral text color, "dim" its muted one.
+var STATUS_COLORS = {
+  pending: "",
+  processing: "#6366f1",
+  partial: "#22c55e",
+  available: "#22c55e",
+  completed: "#22c55e",
+  declined: "#dc2626",
+  failed: "#dc2626",
+  deleted: "#dc2626",
+  unknown: "dim"
+}
+
+function statusColor(key) {
+  return STATUS_COLORS.hasOwnProperty(key) ? STATUS_COLORS[key] : "dim"
 }
 
 // ------------------------------------------------------------------ list view

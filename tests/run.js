@@ -156,6 +156,15 @@ test("statusKey combines request and media status", () => {
   eq(k(9, 1), "unknown")
 })
 
+test("statusColor follows Seerr and keeps pending neutral", () => {
+  eq(S.statusColor("pending"), "")
+  eq(S.statusColor("available"), "#22c55e")
+  eq(S.statusColor("processing"), "#6366f1")
+  eq(S.statusColor("declined"), "#dc2626")
+  eq(S.statusColor("failed"), "#dc2626")
+  eq(S.statusColor("nope"), "dim")
+})
+
 // ------------------------------------------------------------------ list view
 
 test("matchesView: declined client filter and search", () => {

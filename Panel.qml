@@ -62,11 +62,11 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  function toneColor(tone) {
-    if (tone === "accent") return accent
-    if (tone === "urgent") return urgent
-    if (tone === "good") return foreground
-    return dim
+  function statusColor(key) {
+    var c = Seerr.statusColor(key)
+    if (c === "") return foreground
+    if (c === "dim") return dim
+    return c
   }
 
   readonly property var cfg: svc ? svc.settings : Seerr.normalizeSettings({})
@@ -1480,7 +1480,7 @@ Panel {
   component StatusBadge: Rectangle {
     id: badge
     property string status: "unknown"
-    readonly property color tone: root.toneColor(Seerr.statusTone(status))
+    readonly property color tone: root.statusColor(status)
     implicitWidth: badgeLabel.implicitWidth + Style.space(12)
     implicitHeight: badgeLabel.implicitHeight + Style.space(4)
     radius: height / 2
