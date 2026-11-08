@@ -63,6 +63,7 @@
   "error.conflict": "Only pending requests can be changed.",
   "error.http": "Seerr answered with an error (HTTP %1).",
   "error.unknown": "Something went wrong.",
+  "error.otherServer": "This notification is about another Seerr server than the one configured now.",
 
   "filter.pending": "Pending",
   "filter.approved": "Approved",
@@ -78,6 +79,7 @@
   "key.lookupFailed": "Could not read the keyring.",
   "key.storeFailed": "Could not save the key in the keyring.",
   "key.needUrl": "Save the Seerr URL first: the key is bound to it.",
+  "key.busy": "A key is already being saved.",
 
   "list.pendingCount": { "one": "%1 pending request", "other": "%1 pending requests" },
   "list.search": "Search title or user",

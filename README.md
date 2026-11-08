@@ -99,6 +99,8 @@ omarchy-shell myouboku.omaseerr decline <id>
 omarchy-shell myouboku.omaseerr get|set <key> [value]
 ```
 
+`approve` and `decline` (and the notification buttons, which use them) first read the request and only act on it while it is still pending, so an old notification cannot overturn a decision taken since. Notifications also name the server they came from (`<id>@<origin>`): once the URL points to another Seerr, their buttons do nothing.
+
 A Hyprland binding, for example in `~/.config/hypr/bindings.lua`, can open the panel with `omarchy-shell myouboku.omaseerr toggle`.
 
 ## Network and privacy

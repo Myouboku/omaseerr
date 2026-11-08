@@ -202,6 +202,17 @@ function listPath(opts) {
   })
 }
 
+// The request an IPC call or a notification button names: "42", or
+// "42@https://seerr.example.com" when a notification also names the server it
+// was about, so a button clicked after the URL changed cannot act on another
+// Seerr's request of the same id. { id, origin } with id 0 when unusable.
+function actionTarget(text) {
+  var s = String(text === undefined || text === null ? "" : text).trim()
+  var at = s.indexOf("@")
+  var idPart = at === -1 ? s : s.slice(0, at)
+  return { id: /^\d+$/.test(idPart) ? positiveId(idPart) : 0, origin: at === -1 ? "" : s.slice(at + 1) }
+}
+
 function mediaPath(type, tmdbId) {
   var id = positiveId(tmdbId)
   if (!id) return ""
@@ -734,6 +745,16 @@ function pickServer(servers, req) {
   }
   for (var j = 0; j < candidates.length; j++) if (candidates[j].isDefault) return candidates[j]
   return candidates.length ? candidates[0] : null
+}
+
+// The servers the approval form offers: those of the request's 4K-ness, plus
+// the request's own server when it is of the other kind, since pickServer
+// selects it and the form must be able to show what is selected.
+function formServers(servers, req) {
+  var out = servers.filter(function(s) { return s.is4k === !!req.is4k })
+  var picked = pickServer(servers, req)
+  if (picked && out.indexOf(picked) === -1) out.unshift(picked)
+  return out
 }
 
 // Initial approval form values, mirroring Seerr's advanced requester: the

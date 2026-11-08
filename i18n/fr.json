@@ -63,6 +63,7 @@
   "error.conflict": "Seules les demandes en attente peuvent être modifiées.",
   "error.http": "Seerr a répondu par une erreur (HTTP %1).",
   "error.unknown": "Une erreur est survenue.",
+  "error.otherServer": "Cette notification concerne un autre serveur Seerr que celui configuré maintenant.",
 
   "filter.pending": "En attente",
   "filter.approved": "Approuvées",
@@ -78,6 +79,7 @@
   "key.lookupFailed": "Impossible de lire le trousseau.",
   "key.storeFailed": "Impossible d’enregistrer la clé dans le trousseau.",
   "key.needUrl": "Enregistre d’abord l’URL de Seerr : la clé y est liée.",
+  "key.busy": "Une clé est déjà en cours d’enregistrement.",
 
   "list.pendingCount": { "one": "%1 demande en attente", "other": "%1 demandes en attente" },
   "list.search": "Chercher un titre ou un utilisateur",

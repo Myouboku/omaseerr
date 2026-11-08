@@ -273,7 +273,7 @@ Panel {
       svc.loadServers(type, function(servers, error) {
         if (root.formReq !== req) return
         if (error) { root.formLoading = false; root.formError = error; return }
-        root.formServers = servers.filter(function(s) { return s.is4k === req.is4k })
+        root.formServers = Seerr.formServers(servers, req)
         var server = Seerr.pickServer(servers, req)
         if (!server) { root.formLoading = false; root.formError = root.t("approve.noServers"); return }
         root.selectServer(server.id, m)
@@ -286,7 +286,7 @@ Panel {
     var server = null
     var all = formServers
     for (var i = 0; i < all.length; i++) if (all[i].id === serverId) server = all[i]
-    if (!server) return
+    if (!server) { formLoading = false; formError = t("approve.noServers"); return }
     formLoading = true
     formError = ""
     svc.loadServerDetails(svc.serviceType(req), server.id, function(details, error) {

@@ -130,6 +130,15 @@ test("poster paths are validated", () => {
   eq(S.posterUrl(null), "")
 })
 
+test("actionTarget reads an id, with or without the server's origin", () => {
+  eq(S.actionTarget("42"), { id: 42, origin: "" })
+  eq(S.actionTarget(" 42@https://seerr.example.com "), { id: 42, origin: "https://seerr.example.com" })
+  eq(S.actionTarget("42abc").id, 0)
+  eq(S.actionTarget("-3").id, 0)
+  eq(S.actionTarget("@https://x").id, 0)
+  eq(S.actionTarget(null), { id: 0, origin: "" })
+})
+
 test("webUrl points at the media page", () => {
   eq(S.webUrl("https://s.example", "tv", 1399), "https://s.example/tv/1399")
   eq(S.webUrl("https://s.example", "movie", 0), "https://s.example")
@@ -327,6 +336,13 @@ test("pickServer honours request, then default for 4K-ness", () => {
   eq(S.pickServer(servers, { is4k: true, serverId: -1 }).id, 1)
   eq(S.pickServer(servers, { is4k: false, serverId: 1 }).id, 1)
   eq(S.pickServer([], hd), null)
+})
+
+test("formServers offers the picked server even of the other 4K-ness", () => {
+  eq(S.formServers(servers, { is4k: false, serverId: -1 }).map(s => s.id), [0])
+  eq(S.formServers(servers, { is4k: true, serverId: -1 }).map(s => s.id), [1])
+  eq(S.formServers(servers, { is4k: false, serverId: 1 }).map(s => s.id), [1, 0])
+  eq(S.formServers([], { is4k: false, serverId: -1 }), [])
 })
 
 test("defaultForm uses request values, then (anime) server defaults", () => {

@@ -205,6 +205,12 @@ Item {
     _listSkip = 0
     media = ({})
     mediaRevision++
+    // The calls these waited on were just dropped and will never answer;
+    // left in place, they would keep their media from ever loading again.
+    _mediaWaiters = ({})
+    // Another server has other Radarr/Sonarr servers, profiles and folders.
+    _servers = ({})
+    _serverDetails = ({})
     if (!keyMatches(baseUrl)) {
       connection = "unconfigured"
       lastError = ""
@@ -237,6 +243,8 @@ Item {
     if (res.error === "network") return t("error.network")
     if (res.error === "badJson" || res.error === "tooLarge") return t("error.badResponse")
     if (res.error === "tls") return t("error.tls")
+    if (res.error === "notPending") return t("error.conflict")
+    if (res.error === "otherServer") return t("error.otherServer")
     if (res.error === "redirect") return res.location ? t("error.redirectTo").arg(res.location) : t("error.redirect")
     if (res.status === 401 || res.status === 403) return t("error.unauthorized")
     if (res.status === 404) return t("error.notFound")
@@ -274,7 +282,7 @@ Item {
     var k = String(key || "").trim()
     if (!keyOrigin) { keyMessage = t("key.needUrl"); return false }
     if (!validKey(k)) { keyMessage = t("key.invalid"); return false }
-    if (keyStore.running) return false
+    if (keyStore.running) { keyMessage = t("key.busy"); return false }
     _pendingKey = k
     keyMessage = ""
     keyStore.origin = keyOrigin
@@ -490,7 +498,9 @@ Item {
       if (!res.ok) { root._polling = false; root.fail(res); return }
       var pending = Seerr.normalizeRequestList(res.data).requests
       root.handlePending(pending)
-      if (root.settings.notifyStatusChanges) root.pollStatuses()
+      // Before the saved state is read, comparing statuses (and saving them)
+      // would write over it.
+      if (root.settings.notifyStatusChanges && root._stateLoaded) root.pollStatuses()
       else {
         root._polling = false
         if (root.openPanels > 0) root.refreshListQuietly()
@@ -567,7 +577,9 @@ Item {
     fetchPage(false)
   }
 
-  // Refetches what is on screen without clearing it first.
+  // Refetches what is on screen without clearing it first. One call brings
+  // at most 100 rows: past that, the head is refreshed and the rows already
+  // scrolled to stay, rather than the list shrinking back on every poll.
   function refreshListQuietly() {
     if (listLoading || connection !== "connected") return
     var generation = ++_listGeneration
@@ -576,11 +588,27 @@ Item {
       if (generation !== root._listGeneration || !res.ok) return
       var page = Seerr.normalizeRequestList(res.data)
       root.remember(page.requests)
-      root.rows = page.requests
+      if (root.rows.length > take) {
+        root.rows = Seerr.mergePage(page.requests, root.rows.slice(take))
+      } else {
+        root.rows = page.requests
+        root._listSkip = page.requests.length
+      }
       root.rowsTotal = page.total
-      root._listSkip = page.requests.length
       root.fetchMediaFor(page.requests)
     })
+  }
+
+  // The declined filter is applied here, over pages of every request: when
+  // the pages so far hold too few declined ones to fill the panel, the next
+  // page is fetched on its own, since there is nothing to scroll to ask for
+  // it. Bounded, so a server with few declined requests is not read whole.
+  readonly property int declinedScanLimit: 1000
+  function continueDeclinedScan() {
+    if (view.filter !== "declined" || !hasMore || rows.length >= declinedScanLimit) return
+    var found = 0
+    for (var i = 0; i < rows.length; i++) if (rows[i].status === Seerr.REQUEST_DECLINED) found++
+    if (found < settings.pageSize) Qt.callLater(loadMore)
   }
 
   function fetchPage(reset) {
@@ -599,6 +627,7 @@ Item {
       root._listSkip = skip + page.requests.length
       root.listError = ""
       root.fetchMediaFor(page.requests)
+      root.continueDeclinedScan()
     })
   }
 
@@ -705,10 +734,45 @@ Item {
     id = Seerr.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
-    api("POST", "/request/" + id + "/approve", null, function(res) {
-      root.afterAction(id, "approve", res, res.ok ? Seerr.normalizeRequest(res.data) : null, notify)
-    })
+    postStatus(id, "approve", notify)
     return true
+  }
+
+  // POST /request/{id}/approve|decline, for an id already marked busy.
+  function postStatus(id, action, notify) {
+    api("POST", "/request/" + id + "/" + action, null, function(res) {
+      root.afterAction(id, action, res, res.ok ? Seerr.normalizeRequest(res.data) : null, notify)
+    })
+  }
+
+  // Approve or decline from IPC or a notification button. Seerr sets the
+  // status it is asked for whatever the current one is, and a notification
+  // stays clickable in the history long after it was sent: the request may
+  // have been declined (or approved) since, or the URL may now point to
+  // another Seerr. So the request is read first and only a pending one, of
+  // the server the notification named, is acted on. The outcome is notified.
+  function actFromOutside(target, action) {
+    var named = Seerr.actionTarget(target)
+    var id = named.id
+    if (!id) return "ignored"
+    if (isBusy(id)) return "busy"
+    if (named.origin !== "" && named.origin !== keyOrigin) {
+      // Not looked up here: the same id names another request on this server.
+      var message = describeError({ error: "otherServer" })
+      actionDone(id, action, false, message)
+      sendNotification(t("notify.actionFailed").arg("#" + id), message, "", 0, false, "normal")
+      return "other server"
+    }
+    setBusy(id, true)
+    fetchRequest(id, function(req, res) {
+      if (!req) { root.afterAction(id, action, res.ok ? { ok: false, status: 0, error: "badJson" } : res, null, true); return }
+      if (req.status !== Seerr.REQUEST_PENDING) {
+        root.afterAction(id, action, { ok: false, status: 0, error: "notPending" }, req, true)
+        return
+      }
+      root.postStatus(id, action, true)
+    })
+    return "ok"
   }
 
   // The advanced path: save the chosen server, profile, folder, tags and
@@ -731,9 +795,7 @@ Item {
     id = Seerr.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
-    api("POST", "/request/" + id + "/decline", null, function(res) {
-      root.afterAction(id, "decline", res, res.ok ? Seerr.normalizeRequest(res.data) : null, notify)
-    })
+    postStatus(id, "decline", notify)
     return true
   }
 
@@ -809,6 +871,8 @@ Item {
     var argv = [notifySend, "--app-name", "Seerr", "-g", glyph, "-u", urgency || settings.notifyUrgency]
     if (imagePath) argv.push("--image", imagePath)
     argv.push(safeArg(summary), safeArg(Seerr.neutralizeMarkup(body)))
+    // The request, and the server it is on: see actFromOutside.
+    var target = String(requestId) + (keyOrigin ? "@" + keyOrigin : "")
     if (withActions && requestId > 0) {
       // The card's own click runs the first action, so the harmless one leads.
       argv.push("--action", t("notify.details"), shellCli, pluginId, "show")
@@ -816,9 +880,9 @@ Item {
         argv.push("--action", t("notify.approve"), shellCli, pluginId, "approve")
         argv.push("--action", t("notify.decline"), shellCli, pluginId, "decline")
       }
-      argv.push("--with", String(requestId))
+      argv.push("--with", target)
     } else if (requestId > 0) {
-      argv.push("--exec", shellCli, pluginId, "show", String(requestId))
+      argv.push("--exec", shellCli, pluginId, "show", target)
     } else if (requestId === -1) {
       argv.push("--exec", shellCli, pluginId, "open")
     }
@@ -941,7 +1005,8 @@ Item {
   }
 
   function saveState() {
-    if (!dirsReady) return
+    // Saving before the file was read would replace what it holds.
+    if (!dirsReady || !_stateLoaded) return
     saveTimer.restart()
   }
 
@@ -962,8 +1027,11 @@ Item {
     return shell.summon(pluginId, "{}") ? "ok" : "not summoned"
   }
 
-  function showRequest(id) {
-    focusRequestId = Seerr.positiveId(id)
+  // A request of another server than the one now configured is not shown:
+  // its id would open an unrelated request here.
+  function showRequest(target) {
+    var named = Seerr.actionTarget(target)
+    focusRequestId = named.origin === "" || named.origin === keyOrigin ? named.id : 0
     return openPanel()
   }
 
@@ -983,8 +1051,8 @@ Item {
     function open(): string { root.focusRequestId = 0; return root.openPanel() }
     function toggle(): string { if (root.shell) root.shell.toggle(root.pluginId, "{}"); return "ok" }
     function show(id: string): string { return root.showRequest(id) }
-    function approve(id: string): string { return root.quickApprove(id, true) ? "ok" : "ignored" }
-    function decline(id: string): string { return root.decline(id, true) ? "ok" : "ignored" }
+    function approve(id: string): string { return root.actFromOutside(id, "approve") }
+    function decline(id: string): string { return root.actFromOutside(id, "decline") }
     function reloadKey(): string { root.loadKey(); return "ok" }
     // omarchy-shell myouboku.omaseerr set notifyStatusChanges true
     function set(key: string, value: string): string {
