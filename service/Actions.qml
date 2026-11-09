@@ -58,8 +58,9 @@ QtObject {
         store.updateRow(updated)
         // A row that left the current filter goes once the list refreshes.
       }
-      poller.poll()
-      if (svc.openPanels > 0) store.refreshListQuietly()
+      // A poll refreshes the open list when it ends; only when none could
+      // start is the list refreshed here.
+      if (!poller.poll() && svc.openPanels > 0) store.refreshListQuietly()
     }
     actionDone(id, action, ok, ok ? title : message)
     if (notify) notifier.announceResult(id, action, ok, message, updated)

@@ -60,8 +60,16 @@ QtObject {
   }
 
   // A new connection: no list load is waited for any more.
+  // A new connection to the same server (a retry): the calls under way were
+  // dropped and will never answer. Whoever waited on a title gets none now
+  // (a notification still goes out, with the fallback title) instead of
+  // waiting for good, and the next ensureMedia asks again.
   function stopLoading() {
     listLoading = false
+    var waiting = _mediaWaiters
+    _mediaWaiters = ({})
+    for (var key in waiting)
+      for (var i = 0; i < waiting[key].length; i++) waiting[key][i](null)
   }
 
   // Another server, or none: nothing of the previous one stays.

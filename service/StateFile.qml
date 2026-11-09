@@ -9,7 +9,7 @@ import "../model/notify.js" as Notify
 QtObject {
   id: stateFile
 
-  // { url, seen, statuses, primed }: see Notify.parseState.
+  // { url, seen, statuses, primed, tracking }: see Notify.parseState.
   property var state: Notify.parseState("")
   property bool loaded: false
 
@@ -65,7 +65,7 @@ QtObject {
     interval: 500
     onTriggered: {
       var st = stateFile.state
-      file.setText(JSON.stringify({ url: st.url, seen: st.seen, statuses: st.statuses, primed: st.primed }) + "\n")
+      file.setText(JSON.stringify({ url: st.url, seen: st.seen, statuses: st.statuses, primed: st.primed, tracking: st.tracking }) + "\n")
     }
   }
 }

@@ -48,6 +48,26 @@ function statusMap(requests, keep) {
   return out
 }
 
+// Statuses after which no notification can follow: nothing left to watch.
+var SETTLED = ["available", "completed", "declined", "deleted"]
+var MAX_STATUSES = 500
+
+// `previous` updated with `requests` (the recently modified ones): a request
+// that drops out of that recent window keeps its last status, so its later
+// change is still noticed. Settled requests are dropped, and the newest ids
+// are kept when there are too many.
+function mergeStatuses(previous, requests) {
+  var all = {}
+  for (var k in previous) all[k] = previous[k]
+  for (var i = 0; i < requests.length; i++) all[requests[i].id] = Requests.statusKey(requests[i])
+  var ids = []
+  for (var id in all) if (SETTLED.indexOf(all[id]) === -1) ids.push(Number(id))
+  ids.sort(function(a, b) { return b - a })
+  var out = {}
+  for (var j = 0; j < ids.length && j < MAX_STATUSES; j++) out[ids[j]] = all[ids[j]]
+  return out
+}
+
 // The Omarchy daemon renders a notification body as restricted markup, and it
 // decodes entities (several passes) before deciding what is a tag, so plain
 // escaping is undone. A word joiner after every "<" and "&" breaks any tag or
@@ -56,7 +76,10 @@ function neutralizeMarkup(text) {
   return String(text || "").replace(/</g, "<\u2060").replace(/&/g, "&\u2060")
 }
 
-// Persisted state: { url, seen: [ids], statuses: {id: key}, primed }.
+// Persisted state: { url, seen: [ids], statuses: {id: key}, primed,
+// tracking }. `tracking` says the statuses were kept up to date until now;
+// when they were not (status notifications were off), the first comparison
+// only records, rather than announcing changes from long ago.
 function parseState(text) {
   var parsed = Values.parseJson(String(text || ""))
   var v = parsed.ok && parsed.value && typeof parsed.value === "object" ? parsed.value : {}
@@ -73,6 +96,7 @@ function parseState(text) {
     url: Values.str(v.url, 2048),
     seen: rememberIds([], Array.isArray(v.seen) ? v.seen.slice(0, MAX_SEEN) : []),
     statuses: statuses,
-    primed: v.primed === true
+    primed: v.primed === true,
+    tracking: v.tracking === true
   }
 }

@@ -41,17 +41,33 @@ test("stepTarget after the request left the list: the next one is at the cursor"
   // 102 was at index 2, then approved under the pending filter: what was
   // 103 now sits at index 2.
   const after = [{ id: 100 }, { id: 101 }, { id: 103 }, { id: 104 }]
-  eq(Cursor.stepTarget(after, 102, 2, 1), 2)
-  eq(Cursor.stepTarget(after, 102, 2, -1), 1)
-  eq(Cursor.stepTarget(after, 102, 2, 8), 3)
-  eq(Cursor.stepTarget(after, 102, 2, -8), 0)
+  eq(Cursor.stepTarget(after, 102, 2, 1, true), 2)
+  eq(Cursor.stepTarget(after, 102, 2, -1, true), 1)
+  eq(Cursor.stepTarget(after, 102, 2, 8, true), 3)
+  eq(Cursor.stepTarget(after, 102, 2, -8, true), 0)
   // It was the last one: down stays on the new last one.
-  eq(Cursor.stepTarget([{ id: 100 }, { id: 101 }], 102, 2, 1), 1)
+  eq(Cursor.stepTarget([{ id: 100 }, { id: 101 }], 102, 2, 1, true), 1)
   // The cursor went out of range: clamped.
-  eq(Cursor.stepTarget(after, 999, 10, -1), 3)
-  eq(Cursor.stepTarget([{ id: 100 }], 102, 0, 1), 0)
-  eq(Cursor.stepTarget([{ id: 100 }], 102, 0, -1), 0)
+  eq(Cursor.stepTarget(after, 999, 10, -1, true), 3)
+  eq(Cursor.stepTarget([{ id: 100 }], 102, 0, 1, true), 0)
+  eq(Cursor.stepTarget([{ id: 100 }], 102, 0, -1, true), 0)
 })
+
+test("stepTarget from a request opened elsewhere and not in the list stays put", () => {
+  // Opened from a notification: the cursor says nothing about where it was.
+  const r = rows(5)
+  eq(Cursor.stepTarget(r, 900, 3, 1, false), -1)
+  eq(Cursor.stepTarget(r, 900, 3, -1, false), -1)
+  // In the list, it steps from where it is, whatever the cursor.
+  eq(Cursor.stepTarget(r, 101, 4, 1, false), 2)
+})
+
+test("endIndex names the first and last rows", () => {
+  eq(Cursor.endIndex("first", 5), 0)
+  eq(Cursor.endIndex("last", 5), 4)
+  eq(Cursor.endIndex("last", 0), 0)
+})
+
 
 test("stepTarget uses the last row with the id", () => {
   eq(Cursor.stepTarget([{ id: 7 }, { id: 8 }, { id: 7 }, { id: 9 }], 7, 0, 1), 3)

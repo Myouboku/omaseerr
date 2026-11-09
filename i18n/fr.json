@@ -53,6 +53,7 @@
   "detail.seasonCount": { "one": "%1 saison", "other": "%1 saisons" },
   "detail.keysDone": "↑↓ parcourir · x supprimer · o ouvrir dans Seerr · Échap retour",
   "detail.keys": "↑↓ parcourir · a approuver · A approuver par défaut · d refuser · x supprimer · o ouvrir · Échap retour",
+  "detail.gone": "Cette demande n’existe plus.",
   "detail.keysFailed": "↑↓ parcourir · R réessayer · x supprimer · o ouvrir dans Seerr · Échap retour",
 
   "error.notConfigured": "Seerr n’est pas configuré.",

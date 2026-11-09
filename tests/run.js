@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Unit tests for model/*.js, one tests/<module>.test.js per model file.
 // Run: node tests/run.js            every module
-//      node tests/run.js form keys  only those modules
+//      node tests/run.js form keymap  only those modules
 
 const fs = require("fs")
 const { describe, report } = require("./harness")

@@ -4,7 +4,8 @@ import qs.Commons as Commons
 import qs.Ui
 
 // A glyph button that reports the modifiers held, so Shift+click can mean
-// "approve with defaults".
+// "approve with defaults". Reachable with Tab and activated with Enter or
+// Space, unless `focusable` is off (a row's buttons, which its keys cover).
 Item {
   id: ib
   property string glyph: ""
@@ -16,14 +17,23 @@ Item {
   property bool busy: false
   // Turns while something it started is under way (refresh).
   property bool spinning: false
+  property bool focusable: true
   signal activated(int modifiers)
+  activeFocusOnTab: focusable
+  Keys.onPressed: function(event) {
+    if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Space) return
+    if (ib.enabled && !ib.busy) ib.activated(event.modifiers)
+    event.accepted = true
+  }
   implicitWidth: Style.space(26)
   implicitHeight: Style.space(26)
   opacity: enabled ? (busy ? 0.45 : 1) : 0.35
   Rectangle {
     anchors.fill: parent
     radius: Style.cornerRadius
-    color: ibMouse.containsMouse && ib.enabled && !ib.busy ? Style.hoverFillFor(ib.foreground, ib.accent) : "transparent"
+    color: (ibMouse.containsMouse || ib.activeFocus) && ib.enabled && !ib.busy ? Style.hoverFillFor(ib.foreground, ib.accent) : "transparent"
+    border.width: ib.activeFocus ? 2 : 0
+    border.color: ib.accent
   }
   PlainText {
     id: ibGlyph
@@ -47,5 +57,5 @@ Item {
     cursorShape: ib.enabled && !ib.busy ? Qt.PointingHandCursor : Qt.ArrowCursor
     onClicked: function(mouse) { if (ib.enabled && !ib.busy) ib.activated(mouse.modifiers) }
   }
-  PanelToolTip { visible: ibMouse.containsMouse && ib.tooltip !== ""; text: ib.tooltip; fontFamily: ib.fontFamily }
+  PanelToolTip { visible: (ibMouse.containsMouse || ib.activeFocus) && ib.tooltip !== ""; text: ib.tooltip; fontFamily: ib.fontFamily }
 }

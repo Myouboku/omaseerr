@@ -30,7 +30,8 @@ QtObject {
     var nav = ctx.nav
     var svc = ctx.svc
     var content = ctx.content
-    var req = nav.confirmOpen ? null : nav.currentReq()
+    // The current request only matters on the list and the details.
+    var req = !nav.confirmOpen && (nav.page === "list" || nav.page === "detail") ? nav.currentReq() : null
     var a = KeyMap.keyAction({
       key: keyName(event.key),
       text: event.text,
@@ -40,7 +41,6 @@ QtObject {
       inControl: !!content && !content.activeFocus,
       searchFocused: !!content && !!content.searchField && content.searchField.activeFocus,
       searching: !!svc && !!svc.view.search,
-      rowCount: nav.visibleRows.length,
       status: req ? req.status : 0
     })
     if (!a) return
@@ -55,7 +55,7 @@ QtObject {
       break
     case "back": nav.back(); break
     case "submit": ctx.approval.submit(a.quick); break
-    case "move": nav.moveCursor(a.by); break
+    case "move": if (a.to) nav.moveTo(a.to); else nav.moveCursor(a.by); break
     case "openDetail": nav.openDetail(req); break
     case "approve": nav.approve(req, a.quick); break
     case "decline": nav.decline(req); break

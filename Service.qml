@@ -190,6 +190,7 @@ Item {
   function nameFor(req) { return store.nameFor(req) }
   function yearFor(req) { return store.yearFor(req) }
   function titleFor(req) { return store.titleFor(req) }
+  function describeError(res) { return conn.describeError(res) }
 
   signal actionDone(int requestId, string action, bool ok, string message)
   function isBusy(id) { return actions.isBusy(id) }

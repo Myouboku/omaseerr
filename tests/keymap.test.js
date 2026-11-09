@@ -7,7 +7,7 @@ const KeyMap = load("model/keymap.js")
 // A key press on the list's own keys, with `over` changing the situation.
 function press(over) {
   return KeyMap.keyAction(Object.assign({ key: "", text: "", shift: false, page: "list", confirmOpen: false,
-    inControl: false, searchFocused: false, searching: false, rowCount: 5, status: Requests.REQUEST_PENDING }, over))
+    inControl: false, searchFocused: false, searching: false, status: Requests.REQUEST_PENDING }, over))
 }
 
 test("the confirmation question takes every key first", () => {
@@ -46,8 +46,9 @@ test("moving: arrows, vi keys, pages, ends", () => {
   eq(press({ text: "k" }), { action: "move", by: -1 })
   eq(press({ key: "PageDown" }), { action: "move", by: 8 })
   eq(press({ key: "PageUp" }), { action: "move", by: -8 })
-  eq(press({ key: "Home", rowCount: 12 }), { action: "move", by: -12 })
-  eq(press({ key: "End", rowCount: 12 }), { action: "move", by: 12 })
+  eq(press({ key: "Home" }), { action: "move", to: "first" })
+  eq(press({ key: "End" }), { action: "move", to: "last" })
+  eq(press({ page: "detail", key: "End" }), { action: "move", to: "last" })
   eq(press({ page: "detail", key: "Down" }), { action: "move", by: 1 })
   // Down from the search field goes back to the rows instead.
   eq(press({ key: "Down", searchFocused: true, inControl: true }), { action: "leaveControl", clearSearch: false })
@@ -74,7 +75,7 @@ test("request and panel actions", () => {
     eq(press({ page, text: "a" }), { action: "approve", quick: false })
     eq(press({ page, text: "A", shift: true }), { action: "approve", quick: true })
     eq(press({ page, text: "d" }), { action: "decline" })
-    eq(press({ page, text: "D" }), { action: "decline" })
+    eq(press({ page, text: "D", shift: true }), { action: "decline" })
     eq(press({ page, text: "x" }), { action: "remove" })
     eq(press({ page, key: "Delete" }), { action: "remove" })
     eq(press({ page, text: "o" }), { action: "open" })
@@ -84,10 +85,10 @@ test("request and panel actions", () => {
 })
 
 test("R retries a failed request only", () => {
-  eq(press({ text: "R", status: Requests.REQUEST_FAILED }), { action: "retry" })
-  eq(press({ page: "detail", text: "R", status: Requests.REQUEST_FAILED }), { action: "retry" })
-  eq(press({ text: "R", status: Requests.REQUEST_PENDING }), null)
-  eq(press({ text: "R", status: 0 }), null)
+  eq(press({ text: "R", shift: true, status: Requests.REQUEST_FAILED }), { action: "retry" })
+  eq(press({ page: "detail", text: "R", shift: true, status: Requests.REQUEST_FAILED }), { action: "retry" })
+  eq(press({ text: "R", shift: true, status: Requests.REQUEST_PENDING }), null)
+  eq(press({ text: "R", shift: true, status: 0 }), null)
 })
 
 test("the list's own keys: search and the view", () => {
@@ -95,10 +96,26 @@ test("the list's own keys: search and the view", () => {
   eq(press({ text: "f" }), { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: false })
   eq(press({ text: "F", shift: true }), { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: true })
   eq(press({ text: "t" }), { action: "cycle", key: "mediaType", values: Requests.MEDIA_TYPES, backwards: false })
-  eq(press({ text: "T", shift: true }), null)
+  eq(press({ text: "T", shift: true }), { action: "cycle", key: "mediaType", values: Requests.MEDIA_TYPES, backwards: true })
   eq(press({ text: "S", shift: true }), { action: "cycle", key: "sort", values: Requests.SORTS, backwards: false })
   eq(press({ text: "i" }), { action: "cycle", key: "sortDirection", values: Requests.DIRECTIONS, backwards: false })
-  for (const text of ["/", "f", "F", "t", "S", "i"]) eq(press({ page: "detail", text }), null)
+  for (const text of ["/", "f", "t", "i"]) eq(press({ page: "detail", text }), null)
+  for (const text of ["F", "T", "S"]) eq(press({ page: "detail", text, shift: true }), null)
+})
+
+test("Caps Lock: capital letters without Shift act as the lower-case keys", () => {
+  // Caps Lock types "A" without Shift: never a quick approval.
+  eq(press({ text: "A" }), { action: "approve", quick: false })
+  eq(press({ page: "detail", text: "A" }), { action: "approve", quick: false })
+  eq(press({ text: "R", status: Requests.REQUEST_FAILED }), { action: "refresh" })
+  eq(press({ text: "S" }), { action: "settings" })
+  eq(press({ text: "F" }), { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: false })
+  eq(press({ text: "T" }), { action: "cycle", key: "mediaType", values: Requests.MEDIA_TYPES, backwards: false })
+  eq(press({ text: "J" }), { action: "move", by: 1 })
+  eq(press({ text: "X" }), { action: "remove" })
+  // Caps Lock plus Shift types lower case: Shift still decides.
+  eq(press({ text: "a", shift: true }), { action: "approve", quick: true })
+  eq(press({ text: "r", shift: true, status: Requests.REQUEST_FAILED }), { action: "retry" })
 })
 
 test("unknown keys are left alone", () => {

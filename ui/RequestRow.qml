@@ -128,6 +128,9 @@ CursorSurface {
       visible: row.actionable
       Layout.alignment: Qt.AlignVCenter
       glyph: Glyphs.check
+      // Out of the Tab order: a and d do the same on the selected row, and
+      // two stops per row would make Tab useless on a long list.
+      focusable: false
       color: row.accent
       foreground: row.foreground
       accent: row.accent
@@ -140,6 +143,7 @@ CursorSurface {
       visible: row.actionable
       Layout.alignment: Qt.AlignVCenter
       glyph: Glyphs.close
+      focusable: false
       color: row.urgent
       foreground: row.foreground
       accent: row.accent

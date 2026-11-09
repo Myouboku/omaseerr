@@ -82,17 +82,21 @@ the journal.
   `panel/`, `svc.t` / `svc.tn` in `service/`. Add every key to both
   `i18n/en.json` and `i18n/fr.json`. Keyboard hints (`list.keys`,
   `detail.keys`, …) use the format `key label · key label`
-  (`model/hints.js` parses it, `tests/hints.test.js` checks every one), so
-  keys must not contain spaces.
+  (`model/hints.js` parses it), so keys must not contain spaces;
+  `tests/hints.test.js` checks every key cap against its list of known
+  keys: add a new one there.
 - **A setting** lives in five places, keep them in sync: `manifest.json`
   (`defaults` and `schema`), `DEFAULTS` and `normalizeSettings` in
   `model/settings.js`, `pages/SettingsPage.qml`, and the table in
   `README.md`.
 - **Keyboard first.** Every interactive control is reachable with Tab and
   shows its focus (`ActionButton` and `Chip` handle it; kit controls do it
-  themselves); pages scroll to the focused control (`revealFocus`). Escape
+  themselves; `IconButton` too, except a row's approve/decline buttons,
+  which `a`/`d` cover); pages scroll to the focused control (`revealFocus`). Escape
   leaves a control before leaving the page (list, approval form). New keys
-  go in `model/keymap.js` (with a test) and are carried out in
+  go in `model/keymap.js` (with a test), read letters in lower case with
+  their capital variant decided by Shift alone (Caps Lock must never turn
+  `a` into a quick approval), and are carried out in
   `panel/Keyboard.qml`. Each page pins a `KeyHints` line listing its keys:
   update it with any new shortcut.
 - **Pure logic goes in `model/`**, in the file of its topic, with tests in

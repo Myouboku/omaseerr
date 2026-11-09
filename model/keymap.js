@@ -8,14 +8,16 @@
 //   key            the key's name for keys that type nothing: "Escape",
 //                  "Return", "Enter", "Up", "Down", "PageUp", "PageDown",
 //                  "Home", "End", "Backspace", "Delete" (else "")
-//   text, shift    what the key typed, and whether Shift was held
+//   text, shift    what the key typed, and whether Shift was held. A
+//                  letter is read in lower case and its capital variant
+//                  (A, F, R, S, T) taken from Shift alone, so Caps Lock
+//                  never turns `a` into a quick approval.
 //   page           "list" | "detail" | "approve" | "settings"
 //   confirmOpen    the confirmation question is up
 //   inControl      the page has a control focused (a field, a dropdown, a
 //                  button…) rather than the page's own key handling
 //   searchFocused  the list's search field has the focus
 //   searching      the list is filtered by a search
-//   rowCount       rows on the list
 //   status         the current request's status (0 without one)
 // Returns null when the key is not the panel's (so it goes on to whatever
 // has focus), else { action, … }:
@@ -24,6 +26,7 @@
 //   back                        the previous page, or close
 //   submit {quick}              send the approval form
 //   move {by}                   cursor (list) or request (detail) by rows
+//   move {to: "first"|"last"}   to the list's first or last row/request
 //   openDetail, approve {quick}, decline, remove, retry, open, refresh,
 //   settings, focusSearch       on the current request / panel
 //   cycle {key, values, backwards}  the list's next filter, type, sort…
@@ -31,6 +34,7 @@ function keyAction(press) {
   var key = press.key || ""
   var text = press.text || ""
   var shift = !!press.shift
+  var letter = /^[a-zA-Z]$/.test(text) ? text.toLowerCase() : ""
   var page = press.page
   if (press.confirmOpen) return { action: "confirm" }
 
@@ -48,31 +52,31 @@ function keyAction(press) {
   }
 
   if (key === "Down" && press.searchFocused) return { action: "leaveControl", clearSearch: false }
-  var rows = press.rowCount || 0
-  if (key === "Down" || text === "j") return { action: "move", by: 1 }
-  if (key === "Up" || text === "k") return { action: "move", by: -1 }
+  if (key === "Down" || (letter === "j" && !shift)) return { action: "move", by: 1 }
+  if (key === "Up" || (letter === "k" && !shift)) return { action: "move", by: -1 }
   if (key === "PageDown") return { action: "move", by: 8 }
   if (key === "PageUp") return { action: "move", by: -8 }
-  if (key === "Home") return { action: "move", by: -rows }
-  if (key === "End") return { action: "move", by: rows }
-  if (key === "Backspace" || text === "h") return page === "detail" ? { action: "back" } : null
+  if (key === "Home") return { action: "move", to: "first" }
+  if (key === "End") return { action: "move", to: "last" }
+  if (key === "Backspace" || (letter === "h" && !shift)) return page === "detail" ? { action: "back" } : null
 
   if (key === "Return" || key === "Enter")
     return page === "list" && !shift ? { action: "openDetail" } : { action: "approve", quick: shift }
-  if (text === "a") return { action: "approve", quick: false }
-  if (text === "A") return { action: "approve", quick: true }
-  if (text === "d" || text === "D") return { action: "decline" }
-  if (key === "Delete" || text === "x") return { action: "remove" }
-  if (text === "R" && press.status === Requests.REQUEST_FAILED) return { action: "retry" }
-  if (text === "o") return { action: "open" }
-  if (text === "r") return { action: "refresh" }
-  if (text === "s") return { action: "settings" }
+  if (letter === "a") return { action: "approve", quick: shift }
+  if (letter === "d") return { action: "decline" }
+  if (key === "Delete" || (letter === "x" && !shift)) return { action: "remove" }
+  if (letter === "r") {
+    if (!shift) return { action: "refresh" }
+    return press.status === Requests.REQUEST_FAILED ? { action: "retry" } : null
+  }
+  if (letter === "o" && !shift) return { action: "open" }
   if (page === "list") {
     if (text === "/") return { action: "focusSearch" }
-    if (text === "f" || text === "F") return { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: text === "F" }
-    if (text === "t") return { action: "cycle", key: "mediaType", values: Requests.MEDIA_TYPES, backwards: shift }
-    if (text === "S") return { action: "cycle", key: "sort", values: Requests.SORTS, backwards: false }
-    if (text === "i") return { action: "cycle", key: "sortDirection", values: Requests.DIRECTIONS, backwards: false }
+    if (letter === "f") return { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: shift }
+    if (letter === "t") return { action: "cycle", key: "mediaType", values: Requests.MEDIA_TYPES, backwards: shift }
+    if (letter === "s" && shift) return { action: "cycle", key: "sort", values: Requests.SORTS, backwards: false }
+    if (letter === "i" && !shift) return { action: "cycle", key: "sortDirection", values: Requests.DIRECTIONS, backwards: false }
   }
+  if (letter === "s" && !shift) return { action: "settings" }
   return null
 }

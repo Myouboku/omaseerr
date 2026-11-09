@@ -39,6 +39,17 @@ QtObject {
     })
   }
 
+  // Calls under way when Seerr went down are dropped on the retry: a form
+  // still loading starts over once Seerr answers again.
+  property Connections _service: Connections {
+    target: approval.svc
+    ignoreUnknownSignals: true
+    function onConnectionChanged() {
+      if (approval.svc.connection === "connected" && approval.loading && approval.req && approval.ctx.nav.page === "approve")
+        approval.start(approval.req)
+    }
+  }
+
   function selectServer(serverId, m) {
     var r = req
     var server = null

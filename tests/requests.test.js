@@ -57,7 +57,7 @@ test("nextValue goes round both ways", () => {
   eq(Requests.nextValue(v, "b", true), "a")
   // An unknown value sits just before the first.
   eq(Requests.nextValue(v, "zz", false), "a")
-  eq(Requests.nextValue(v, "zz", true), "b")
+  eq(Requests.nextValue(v, "zz", true), "c")
   eq(Requests.nextValue(["only"], "only", true), "only")
 })
 
@@ -75,13 +75,13 @@ test("sortChoice and sortPatch round-trip a view", () => {
   for (const c of Requests.sortChoices()) eq(Requests.sortChoice(Requests.sortPatch(c.value)), c.value)
 })
 
-test("emptyListKey: search first, then the view", () => {
-  const k = (filter, mediaType, search) => Requests.emptyListKey({ filter, mediaType, search })
-  eq(k("pending", "all", "dune"), "list.noMatch")
-  eq(k("all", "tv", "dune"), "list.noMatch")
-  eq(k("pending", "all", ""), "list.nothingPending")
-  eq(k("pending", "movie", ""), "list.emptyFilter")
-  eq(k("all", "all", ""), "list.noRequests")
-  eq(k("all", "tv", ""), "list.emptyFilter")
-  eq(k("declined", "all", undefined), "list.emptyFilter")
+test("emptyListMessage: search first, then the view, with its argument", () => {
+  const k = (filter, mediaType, search) => Requests.emptyListMessage({ filter, mediaType, search })
+  eq(k("pending", "all", "dune"), { key: "list.noMatch", arg: "dune" })
+  eq(k("all", "tv", "dune"), { key: "list.noMatch", arg: "dune" })
+  eq(k("pending", "all", ""), { key: "list.nothingPending", arg: "" })
+  eq(k("pending", "movie", ""), { key: "list.emptyFilter", arg: "" })
+  eq(k("all", "all", ""), { key: "list.noRequests", arg: "" })
+  eq(k("all", "tv", ""), { key: "list.emptyFilter", arg: "" })
+  eq(k("declined", "all", undefined), { key: "list.emptyFilter", arg: "" })
 })

@@ -52,8 +52,9 @@ QtObject {
     if (svc.openPanels > 0) store.reloadList()
   }
 
+  // False when no poll could start (not connected, or one under way).
   function poll() {
-    if (conn.state !== "connected" || _polling) return
+    if (conn.state !== "connected" || _polling) return false
     _polling = true
     http.api("GET", "/request/count", null, function(res) {
       if (!res.ok) { poller._polling = false; poller.conn.fail(res); return }
@@ -61,6 +62,7 @@ QtObject {
       poller.conn.lastOkAt = Date.now()
       poller.pollPending()
     })
+    return true
   }
 
   function pollPending() {
@@ -72,6 +74,7 @@ QtObject {
       // would write over it.
       if (poller.svc.settings.notifyStatusChanges && poller.stateFile.loaded) poller.pollStatuses()
       else {
+        poller.stopTracking()
         poller._polling = false
         if (poller.svc.openPanels > 0) poller.store.refreshListQuietly()
       }
@@ -83,12 +86,16 @@ QtObject {
       poller._polling = false
       if (!res.ok) { poller.conn.fail(res); return }
       var recent = Api.normalizeRequestList(res.data).requests
-      var changes = Notify.statusChanges(poller.stateFile.state.statuses, recent)
-      var next = Notify.statusMap(recent)
       var st = poller.stateFile.state
-      poller.stateFile.state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed }
+      var changes = Notify.statusChanges(st.statuses, recent)
+      // Merged, not replaced: a request that leaves the 50 most recently
+      // modified keeps its status, so its later change is still seen.
+      var next = Notify.mergeStatuses(st.statuses, recent)
+      poller.stateFile.state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed, tracking: true }
       poller.stateFile.save()
-      if (st.primed) {
+      // Statuses not kept up to date until now (status notifications were
+      // off) are only recorded: their changes may be weeks old.
+      if (st.primed && st.tracking) {
         for (var i = 0; i < changes.length; i++) {
           var req = null
           for (var j = 0; j < recent.length; j++) if (recent[j].id === changes[i].id) req = recent[j]
@@ -99,13 +106,23 @@ QtObject {
     })
   }
 
+  // Status notifications are off: the saved statuses stop being kept up to
+  // date, which the next comparison has to know.
+  function stopTracking() {
+    var st = stateFile.state
+    if (!stateFile.loaded || !st.tracking) return
+    stateFile.state = { url: st.url, seen: st.seen, statuses: st.statuses, primed: st.primed, tracking: false }
+    stateFile.save()
+  }
+
   function handlePending(pending) {
     if (!stateFile.loaded) return
     var st = stateFile.state
     var firstRun = !st.primed || st.url !== svc.baseUrl
     var fresh = Notify.newRequestIds(firstRun ? [] : st.seen, pending)
     var seen = Notify.rememberIds(firstRun ? [] : st.seen, pending.map(function(r) { return r.id }))
-    stateFile.state = { url: svc.baseUrl, seen: seen, statuses: firstRun ? Notify.statusMap(pending) : st.statuses, primed: true }
+    stateFile.state = { url: svc.baseUrl, seen: seen, statuses: firstRun ? Notify.statusMap(pending) : st.statuses, primed: true,
+                        tracking: firstRun ? false : st.tracking }
     stateFile.save()
     // Requests already pending on a first connection to a server were not
     // missed: they are only recorded as seen.

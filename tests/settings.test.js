@@ -8,6 +8,11 @@ test("parseSettingValue", () => {
   eq(Settings.parseSettingValue("notifyPoster", "maybe"), undefined)
   eq(Settings.parseSettingValue("pageSize", "30"), 30)
   eq(Settings.parseSettingValue("pageSize", "-3"), undefined)
+  // Out of range: refused, not saved to be clamped on read.
+  eq(Settings.parseSettingValue("refreshIntervalSec", "1"), undefined)
+  eq(Settings.parseSettingValue("refreshIntervalSec", "15"), 15)
+  eq(Settings.parseSettingValue("pageSize", "999999"), undefined)
+  eq(Settings.parseSettingValue("notifyGroupThreshold", "0"), undefined)
   eq(Settings.parseSettingValue("defaultFilter", "declined"), "declined")
   eq(Settings.parseSettingValue("defaultFilter", "bogus"), undefined)
   eq(Settings.parseSettingValue("url", "seerr.lan:5055/"), "https://seerr.lan:5055")

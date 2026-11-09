@@ -59,7 +59,14 @@ function parseSettingValue(key, text) {
     if (/^(false|0|off|no)$/i.test(s)) return false
     return undefined
   }
-  if (typeof def === "number") return /^\d+$/.test(s) ? parseInt(s, 10) : undefined
+  if (typeof def === "number") {
+    if (!/^\d+$/.test(s)) return undefined
+    // Refused rather than saved and then silently clamped on read.
+    var n = parseInt(s, 10)
+    var check = {}
+    check[key] = n
+    return normalizeSettings(check)[key] === n ? n : undefined
+  }
   if (key === "url") {
     if (s === "") return ""
     var u = Api.normalizeBaseUrl(s)

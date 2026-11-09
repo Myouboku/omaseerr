@@ -73,7 +73,8 @@ Item {
           spacing: Style.space(5)
           PlainText {
             width: parent.width
-            text: detailRoot.media ? detailRoot.media.title : ""
+            // The list's fallback ("Movie #123") when TMDB had no details.
+            text: detailRoot.req && ctx.svc ? (ctx.svc.mediaRevision, ctx.svc.nameFor(detailRoot.req)) : ""
             color: ctx.foreground
             font.family: ctx.fontFamily
             font.pixelSize: Style.font.heading

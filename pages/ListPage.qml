@@ -124,8 +124,11 @@ Item {
       font.family: ctx.fontFamily
       font.pixelSize: Style.font.body
       onTextChanged: if (ctx.svc && text !== ctx.svc.view.search) { ctx.nav.cursor = 0; ctx.svc.setView({ search: text }) }
-      // Enter hands the keyboard back to the list, keeping the search.
-      onAccepted: if (ctx.content) ctx.content.forceActiveFocus()
+      // Enter hands the keyboard back to the list, keeping the search. Taken
+      // here: the field lets Return through after `accepted`, and the list
+      // would then open the selected request as well.
+      Keys.onReturnPressed: function(event) { if (ctx.content) ctx.content.forceActiveFocus(); event.accepted = true }
+      Keys.onEnterPressed: function(event) { if (ctx.content) ctx.content.forceActiveFocus(); event.accepted = true }
       Connections {
         target: ctx.svc
         ignoreUnknownSignals: true
@@ -245,8 +248,8 @@ Item {
           if (ctx.svc.listLoading) return ctx.t("list.loading")
           if (ctx.nav.visibleRows.length > 0) return ""
           var v = ctx.svc.view
-          var empty = Requests.emptyListKey(v)
-          return empty === "list.noMatch" ? ctx.t(empty).arg(v.search) : ctx.t(empty)
+          var empty = Requests.emptyListMessage(v)
+          return empty.arg !== "" ? ctx.t(empty.key).arg(empty.arg) : ctx.t(empty.key)
         }
         color: ctx.svc && ctx.svc.listError ? ctx.urgent : ctx.dim
         font.family: ctx.fontFamily

@@ -82,9 +82,11 @@ function matchesView(req, view, media) {
 }
 
 // The value after `current` in `values` (before it when `backwards`), going
-// round. An unknown current value counts as sitting just before the first.
+// round. From an unknown current value, forwards gives the first and
+// backwards the last.
 function nextValue(values, current, backwards) {
   var at = values.indexOf(current)
+  if (at === -1) return backwards ? values[values.length - 1] : values[0]
   return values[(at + (backwards ? values.length - 1 : 1)) % values.length]
 }
 
@@ -108,13 +110,13 @@ function sortPatch(choice) {
   return { sort: parts[0], sortDirection: parts[1] }
 }
 
-// What to say about a loaded view that shows nothing (a translation key; the
-// no-match one takes the search as %1).
-function emptyListKey(view) {
-  if (view.search) return "list.noMatch"
-  if (view.filter === "pending" && view.mediaType === "all") return "list.nothingPending"
-  if (view.filter === "all" && view.mediaType === "all") return "list.noRequests"
-  return "list.emptyFilter"
+// What to say about a loaded view that shows nothing: a translation key and
+// the argument it takes as %1 ("" when it takes none).
+function emptyListMessage(view) {
+  if (view.search) return { key: "list.noMatch", arg: String(view.search) }
+  if (view.filter === "pending" && view.mediaType === "all") return { key: "list.nothingPending", arg: "" }
+  if (view.filter === "all" && view.mediaType === "all") return { key: "list.noRequests", arg: "" }
+  return { key: "list.emptyFilter", arg: "" }
 }
 
 // Keeps the server's order (it already sorted), merging a fresh page into the

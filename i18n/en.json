@@ -53,6 +53,7 @@
   "detail.seasonCount": { "one": "%1 season", "other": "%1 seasons" },
   "detail.keysDone": "↑↓ browse · x delete · o open in Seerr · Esc back",
   "detail.keys": "↑↓ browse · a approve · A approve with defaults · d decline · x delete · o open · Esc back",
+  "detail.gone": "This request no longer exists.",
   "detail.keysFailed": "↑↓ browse · R retry · x delete · o open in Seerr · Esc back",
 
   "error.notConfigured": "Seerr is not configured.",

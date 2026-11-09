@@ -15,7 +15,22 @@ test("parseHints splits pairs and keys from labels", () => {
   eq(Hints.parseHints("x a·b"), [{ keys: "x", label: "a·b" }])
 })
 
-test("every translated hint line parses to keys without spaces and a label", () => {
+// Every key cap a hint line may show. A key written with a space
+// ("Page Up …") would parse as the key "Page" and fail here.
+const KNOWN_KEYS = new Set([
+  "↑↓", "a", "a/A", "A", "d", "x", "o", "R", "s", "/", "f/t", "Tab",
+  "Enter", "Shift+Enter", "Shift+Tab", "Space", "Esc",
+  "Entrée", "Maj+Entrée", "Maj+Tab", "Espace", "Échap",
+])
+
+test("every translated hint line shows only known keys", () => {
+  for (const [lang, strings] of [["en", en], ["fr", fr]]) {
+    for (const k of Object.keys(strings).filter(k => /(^|\.)keys[A-Za-z]*$/.test(k)))
+      for (const e of Hints.parseHints(strings[k])) eq([lang, k, e.keys, KNOWN_KEYS.has(e.keys)], [lang, k, e.keys, true])
+  }
+})
+
+test("every translated hint line parses to keys and a label", () => {
   for (const [lang, strings] of [["en", en], ["fr", fr]]) {
     const flat = {}
     const walk = (o, p) => { for (const k in o) typeof o[k] === "object" ? walk(o[k], p + k + ".") : flat[p + k] = o[k] }

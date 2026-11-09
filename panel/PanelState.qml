@@ -21,18 +21,23 @@ QtObject {
   property string page: "list"
   property int cursor: 0
   property int detailId: 0
+  // The request on display was opened from the list, at the cursor (not
+  // from a notification): see Cursor.stepTarget.
+  property bool detailFromCursor: false
   property bool confirmOpen: false
   property string confirmAction: ""
   property int confirmId: 0
 
   readonly property var visibleRows: {
     if (!svc) return []
-    var rev = svc.mediaRevision
     var view = svc.view
+    // Titles only matter to a search: reading the media otherwise (mediaFor
+    // follows every arrival) would rebuild every row for each poster.
+    var searching = String(view.search || "").trim() !== ""
     var out = []
     for (var i = 0; i < svc.rows.length; i++) {
       var r = svc.rows[i]
-      if (Requests.matchesView(r, view, svc.mediaFor(r))) out.push(r)
+      if (Requests.matchesView(r, view, searching ? svc.mediaFor(r) : null)) out.push(r)
     }
     return out
   }
@@ -70,6 +75,10 @@ QtObject {
 
   function openDetail(req) {
     if (!req) return
+    var at = -1
+    for (var i = 0; i < visibleRows.length; i++) if (visibleRows[i].id === req.id) at = i
+    if (at !== -1) cursor = at
+    detailFromCursor = at !== -1
     showRequest(req)
     if (svc) svc.ensureMedia(req, null)
     go("detail")
@@ -80,13 +89,20 @@ QtObject {
     var row = svc.rowById(id)
     if (row) { openDetail(row); return }
     detailId = id
+    detailFromCursor = false
     _detailFallback = null
     go("detail")
-    svc.fetchRequest(id, function(req) {
-      if (req && nav.detailId === id) {
+    svc.fetchRequest(id, function(req, res) {
+      if (nav.detailId !== id) return
+      if (req) {
         nav._detailFallback = req
         nav.svc.ensureMedia(req, null)
+        return
       }
+      // Deleted since, or Seerr did not answer: say so rather than stay on
+      // "Loading…".
+      nav.flash(res && res.status === 404 ? nav.ctx.t("detail.gone") : nav.svc.describeError(res), true)
+      if (nav.page === "detail") nav.go("list")
     })
   }
 
@@ -109,7 +125,7 @@ QtObject {
   // From a request's details to another one of the list (the cursor
   // follows), also when the one on display just left the list.
   function stepDetail(dy) {
-    var next = Cursor.stepTarget(visibleRows, detailId, cursor, dy)
+    var next = Cursor.stepTarget(visibleRows, detailId, cursor, dy, detailFromCursor)
     if (next < 0) return
     cursor = next
     openDetail(visibleRows[next])
@@ -139,6 +155,16 @@ QtObject {
       var to = Cursor.scrollToShow(flick.contentY, flick.height, flick.contentHeight, item.y, item.height, Style.space(6))
       if (to !== flick.contentY) flick.contentY = to
     })
+  }
+
+  // Home / End: the first or last row, or on a request's details the first
+  // or last request.
+  function moveTo(to) {
+    if (visibleRows.length === 0) return
+    var target = Cursor.endIndex(to, visibleRows.length)
+    if (page === "detail") { stepDetail(target - cursor); return }
+    if (page !== "list") return
+    moveCursor(target - cursor)
   }
 
   function cycleView(key, values, backwards) {
@@ -259,8 +285,15 @@ QtObject {
         nav.openDetailById(id)
       }
     }
+    // Calls that were under way when Seerr went down are dropped on the
+    // retry: once it answers again, a detail page still waiting for its
+    // request asks again.
+    function onConnectionChanged() {
+      if (nav.svc.connection === "connected" && nav.page === "detail" && nav.detailId && !nav.detailReq)
+        nav.openDetailById(nav.detailId)
+    }
     function onRowsChanged() {
-      if (nav.cursor >= nav.visibleRows.length) nav.cursor = Math.max(0, nav.visibleRows.length - 1)
+      if (nav.cursor >= nav.visibleRows.length) nav.cursor = Cursor.clampIndex(nav.cursor, nav.visibleRows.length)
     }
   }
 
@@ -295,7 +328,7 @@ QtObject {
       minutes: function(n) { return nav.ctx.t("age.minutes").arg(n) },
       hours: function(n) { return nav.ctx.t("age.hours").arg(n) },
       days: function(n) { return nav.ctx.t("age.days").arg(n) },
-      date: function(v) { return new Date(v).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), "d MMM yyyy") }
+      date: function(v) { return new Date(v).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), Time.shortDatePattern(v, Date.now())) }
     })
   }
 
