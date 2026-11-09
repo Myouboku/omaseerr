@@ -93,6 +93,22 @@ Panel {
   readonly property string gSortAsc: "\u{f04bc}"
   readonly property string gRetry: "\u{f0450}"
   readonly property string gLock: "\u{f033e}"
+  readonly property string gWarning: "\u{f0026}"
+
+  // One icon per status, shown with its label (and alone where room is short).
+  function statusGlyph(key) {
+    switch (key) {
+    case "pending": return "\u{f0150}"      // clock
+    case "processing": return "\u{f01da}"   // download
+    case "partial": return "\u{f1395}"      // half circle
+    case "available":
+    case "completed": return "\u{f05e0}"    // check circle
+    case "declined":
+    case "deleted": return "\u{f0159}"      // close circle
+    case "failed": return "\u{f0028}"       // alert circle
+    default: return "\u{f02d7}"             // help circle
+    }
+  }
 
   // ---------------------------------------------------------------- navigation
 
@@ -265,24 +281,36 @@ Panel {
     target: root.svc
     ignoreUnknownSignals: true
     function onActionDone(requestId, action, ok, message) {
-      if (!ok) root.flash(message, true)
-      else if (action === "approve" && root.page === "approve" && root.detailId === requestId) root.go("detail")
+      if (!ok) { root.flash(message, true); return }
+      var key = { approve: "notify.approved", decline: "notify.declined", "delete": "toast.deleted", retry: "toast.retried" }[action]
+      if (key) root.flash(root.t(key).arg(message || ("#" + requestId)), false)
+      if (action === "approve" && root.page === "approve" && root.detailId === requestId) root.go("detail")
     }
   }
 
-  // A short line under the header for results and errors.
+  // A toast at the bottom of the panel for results and errors. Errors stay
+  // longer: they usually have something to read.
   property string flashText: ""
   property bool flashError: false
+  property int flashSerial: 0
   function flash(text, error) {
-    flashText = String(text || "")
+    text = String(text || "")
+    if (text === "") return
+    flashText = text
     flashError = !!error
+    flashSerial++
+    flashTimer.interval = error ? 6000 : 2600
     flashTimer.restart()
   }
   Timer {
     id: flashTimer
-    interval: 4000
+    interval: 2600
     onTriggered: root.flashText = ""
   }
+
+  // Seerr stopped answering after it had: what is shown is from before.
+  readonly property bool offline: !!svc && (svc.connection === "error" || (svc.connection === "connecting" && svc.lastError !== ""))
+  readonly property bool retrying: !!svc && svc.connection === "connecting" && svc.lastError !== ""
 
   // ---------------------------------------------------------------- approval form
 
@@ -506,21 +534,38 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     tooltipText: {
-      if (!root.svc) return "Seerr"
-      if (root.svc.connection === "connected") return root.tn("bar.pending", root.pending)
-      if (root.svc.connection === "unconfigured") return root.t("bar.setup")
-      if (root.svc.connection === "connecting") return root.t("bar.connecting")
-      return root.svc.lastError || root.t("bar.error")
+      var state
+      if (!root.svc) state = "Seerr"
+      else if (root.svc.connection === "connected") state = root.tn("bar.pending", root.pending)
+      else if (root.svc.connection === "unconfigured") state = root.t("bar.setup")
+      else if (root.svc.connection === "connecting") state = root.t("bar.connecting")
+      else state = root.t("bar.error") + "\n" + root.svc.lastError
+      return state + "\n" + root.t("bar.clicks")
     }
     // The kit draws and optically centres the glyph. Accent while requests
-    // wait, red when Seerr is unreachable, dimmed while not set up or
+    // wait; a warning sign in red when Seerr is unreachable, so it does not
+    // hang on telling two colours apart; dimmed while not set up or
     // connecting.
-    text: root.gSeerr
+    text: root.svc && root.svc.connection === "error" ? root.gWarning : root.gSeerr
     foreground: {
       if (!root.svc || root.svc.connection === "unconfigured" || root.svc.connection === "connecting")
         return Qt.darker(root.barForeground, 1.55)
       if (root.svc.connection === "error") return root.urgent
       return root.pending > 0 ? root.accent : root.barForeground
+    }
+    // A short bump when new requests come in.
+    SequentialAnimation {
+      id: barPulse
+      NumberAnimation { target: button; property: "scale"; to: 1.3; duration: Style.duration(140); easing.type: Easing.OutCubic }
+      NumberAnimation { target: button; property: "scale"; to: 1; duration: Style.duration(260); easing.type: Easing.OutBack }
+    }
+    property int lastPending: -1
+    Connections {
+      target: root
+      function onPendingChanged() {
+        if (button.lastPending >= 0 && root.pending > button.lastPending) barPulse.restart()
+        button.lastPending = root.pending
+      }
     }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) { if (root.svc) root.svc.refresh() }
@@ -561,10 +606,12 @@ Panel {
       readonly property Item focusedItem: Window.activeFocusItem
       onFocusedItemChanged: Qt.callLater(function() { root.revealFocus(body.focusedItem) })
 
-      ListPage { id: listPage; anchors.fill: parent; visible: root.page === "list" }
-      DetailPage { id: detailPage; anchors.fill: parent; visible: root.page === "detail" }
-      ApprovePage { id: approvePage; anchors.fill: parent; visible: root.page === "approve" }
-      SettingsPage { id: settingsPage; anchors.fill: parent; visible: root.page === "settings" }
+      ListPage { id: listPage; anchors.fill: parent; visible: root.page === "list"; FadeIn on opacity {} }
+      DetailPage { id: detailPage; anchors.fill: parent; visible: root.page === "detail"; FadeIn on opacity {} }
+      ApprovePage { id: approvePage; anchors.fill: parent; visible: root.page === "approve"; FadeIn on opacity {} }
+      SettingsPage { id: settingsPage; anchors.fill: parent; visible: root.page === "settings"; FadeIn on opacity {} }
+
+      Toast { z: 5 }
 
       ConfirmDialog {
         id: confirmDialog
@@ -604,14 +651,24 @@ Panel {
         title: "Seerr"
         subtitle: {
           if (!root.svc) return ""
+          if (root.offline) return root.retrying ? root.t("bar.connecting") : root.t("bar.error")
           if (root.svc.connection === "connected") return root.tn("list.pendingCount", root.pending)
           if (root.svc.connection === "connecting") return root.t("bar.connecting")
           if (root.svc.connection === "unconfigured") return root.t("bar.setup")
-          return root.svc.lastError
+          return root.t("bar.error")
         }
-        subtitleUrgent: !!root.svc && root.svc.connection === "error"
+        subtitleUrgent: root.offline && !root.retrying
+        // The pending count takes you to the pending requests.
+        subtitleClickable: root.connected && root.pending > 0 && !!root.svc && root.svc.view.filter !== "pending"
+        subtitleTooltip: root.t("filter.pending") + "  (f)"
+        onSubtitleClicked: { root.cursor = 0; root.svc.setView({ filter: "pending" }) }
         showBack: false
-        IconButton { glyph: root.gRefresh; tooltip: root.t("action.refresh") + "  (r)"; onActivated: if (root.svc) root.svc.refresh() }
+        IconButton {
+          glyph: root.gRefresh
+          tooltip: root.t("action.refresh") + "  (r)"
+          spinning: !!root.svc && (root.svc.listLoading || root.svc.connection === "connecting")
+          onActivated: if (root.svc) root.svc.refresh()
+        }
         IconButton { glyph: root.gOpen; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!root.svc && root.svc.baseUrl !== ""; onActivated: root.svc.openInBrowser(null) }
         IconButton { glyph: root.gCog; tooltip: root.t("settings.title") + "  (s)"; onActivated: root.go("settings") }
       }
@@ -645,16 +702,24 @@ Panel {
           Layout.fillWidth: true
           Layout.preferredWidth: 1
           showLabel: false
-          current: root.svc ? root.svc.view.sort : "added"
-          options: Seerr.SORTS.map(function(f) { return { value: f, label: root.t("sort." + f) } })
+          // Sort and order in one choice, each spelled out ("Newest").
+          current: root.svc ? root.svc.view.sort + ":" + root.svc.view.sortDirection : "added:desc"
+          options: {
+            var out = []
+            for (var i = 0; i < Seerr.SORTS.length; i++)
+              for (var j = 0; j < Seerr.DIRECTIONS.length; j++) {
+                var k = Seerr.SORTS[i] + ":" + Seerr.DIRECTIONS[j]
+                out.push({ value: k, label: root.t("sortBy." + Seerr.SORTS[i] + "." + Seerr.DIRECTIONS[j]) })
+              }
+            return out
+          }
           foreground: root.foreground
           fontFamily: root.fontFamily
-          onChanged: function(v) { root.cursor = 0; root.svc.setView({ sort: v }) }
-        }
-        IconButton {
-          glyph: root.svc && root.svc.view.sortDirection === "asc" ? root.gSortAsc : root.gSortDesc
-          tooltip: (root.svc && root.svc.view.sortDirection === "asc" ? root.t("sort.asc") : root.t("sort.desc")) + "  (i)"
-          onActivated: { root.cursor = 0; root.svc.setView({ sortDirection: root.svc.view.sortDirection === "asc" ? "desc" : "asc" }) }
+          onChanged: function(v) {
+            var parts = v.split(":")
+            root.cursor = 0
+            root.svc.setView({ sort: parts[0], sortDirection: parts[1] })
+          }
         }
       }
 
@@ -676,7 +741,11 @@ Panel {
         }
       }
 
-      FlashLine { width: parent.width }
+      // Seerr stopped answering: what follows is from before.
+      OfflineBanner {
+        width: parent.width
+        visible: root.offline && root.visibleRows.length > 0
+      }
     }
 
     Flickable {
@@ -699,6 +768,8 @@ Panel {
         id: rowCol
         width: flick.width
         spacing: Style.space(4)
+        opacity: root.offline ? 0.45 : 1
+        Behavior on opacity { NumberAnimation { duration: Style.duration(200) } }
         Repeater {
           id: rowRepeater
           model: root.visibleRows
@@ -721,27 +792,65 @@ Panel {
         width: flick.width
         spacing: Style.space(6)
 
+        // Unreachable with nothing to show: say so here, with a way out.
+        PlainText {
+          anchors.horizontalCenter: parent.horizontalCenter
+          visible: root.offline && root.visibleRows.length === 0
+          text: root.gWarning
+          color: root.retrying ? root.dim : root.urgent
+          font.pixelSize: Style.font.display
+        }
+        PlainText {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          visible: root.offline && root.visibleRows.length === 0
+          text: root.t("list.offlineTitle")
+          font.bold: true
+        }
         Hint {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           visible: text !== ""
           text: {
             if (!root.svc) return ""
+            if (root.offline) return root.visibleRows.length === 0 ? root.svc.lastError : ""
             if (root.svc.connection === "unconfigured") return root.t("list.setupHint")
             if (root.svc.connection !== "connected") return ""
             if (root.svc.listError) return root.svc.listError
             if (root.svc.listLoading) return root.t("list.loading")
-            if (root.visibleRows.length === 0) return root.t("list.empty")
-            return ""
+            if (root.visibleRows.length > 0) return ""
+            var v = root.svc.view
+            if (v.search) return root.t("list.noMatch").arg(v.search)
+            if (v.filter === "pending" && v.mediaType === "all") return root.t("list.nothingPending")
+            if (v.filter === "all" && v.mediaType === "all") return root.t("list.noRequests")
+            return root.t("list.emptyFilter")
           }
           color: root.svc && root.svc.listError ? root.urgent : root.dim
         }
-        ActionButton {
+        Hint {
+          width: parent.width
+          horizontalAlignment: Text.AlignHCenter
+          visible: root.connected && !!root.svc && root.svc.view.search !== "" && root.visibleRows.length === 0 && !root.svc.listLoading
+          text: root.t("list.clearSearch")
+          font.pixelSize: Style.font.caption
+        }
+        Row {
           anchors.horizontalCenter: parent.horizontalCenter
-          visible: !!root.svc && root.svc.connection === "unconfigured"
-          label: root.t("settings.title")
-          glyph: root.gCog
-          onActivated: root.go("settings")
+          spacing: Style.space(6)
+          visible: (root.offline && root.visibleRows.length === 0) || (!!root.svc && root.svc.connection === "unconfigured")
+          ActionButton {
+            visible: root.offline
+            label: root.t("action.retry")
+            glyph: root.gRetry
+            primary: true
+            busy: root.retrying
+            onActivated: root.svc.refresh()
+          }
+          ActionButton {
+            label: root.t("settings.title")
+            glyph: root.gCog
+            onActivated: root.go("settings")
+          }
         }
       }
     }
@@ -770,7 +879,7 @@ Panel {
     TopBar {
       id: header0
       width: parent.width
-      title: detailRoot.req ? root.t("detail.title").arg(detailRoot.req.id) : root.t("list.loading")
+      title: detailRoot.req ? root.t("detail.title") : root.t("list.loading")
       showBack: true
       IconButton { glyph: root.gOpen; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!detailRoot.req; onActivated: root.svc.openInBrowser(detailRoot.req) }
     }
@@ -884,8 +993,6 @@ Panel {
           lineHeight: 1.15
         }
 
-        FlashLine { width: parent.width }
-
         Flow {
           width: parent.width
           spacing: Style.space(6)
@@ -932,7 +1039,12 @@ Panel {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       visible: !!detailRoot.req
-      text: detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING ? root.t("detail.keys") : root.t("detail.keysDone")
+      text: {
+        var r = detailRoot.req
+        if (r && r.status === Seerr.REQUEST_PENDING) return root.t("detail.keys")
+        if (r && r.status === Seerr.REQUEST_FAILED) return root.t("detail.keysFailed")
+        return root.t("detail.keysDone")
+      }
     }
   }
 
@@ -947,7 +1059,6 @@ Panel {
       id: header0
       width: parent.width
       title: root.t("approve.title")
-      subtitle: approveRoot.req && root.svc ? root.svc.titleFor(approveRoot.req) + (approveRoot.req.is4k ? " · 4K" : "") : ""
       showBack: true
     }
 
@@ -970,6 +1081,45 @@ Panel {
         width: parent.width
         spacing: Style.space(10)
 
+        // What is being approved.
+        RowLayout {
+          width: parent.width
+          spacing: Style.space(10)
+          visible: !!approveRoot.req
+          Poster {
+            visible: root.cfg.showPosters
+            Layout.preferredWidth: Style.space(36)
+            Layout.preferredHeight: Style.space(54)
+            path: root.formMedia ? root.formMedia.posterPath : ""
+            size: "w92"
+            type: approveRoot.req ? approveRoot.req.type : "movie"
+          }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(3)
+            PlainText {
+              Layout.fillWidth: true
+              text: approveRoot.req && root.svc ? root.svc.titleFor(approveRoot.req) : ""
+              font.bold: true
+              elide: Text.ElideRight
+            }
+            PlainText {
+              Layout.fillWidth: true
+              color: root.dim
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+              text: {
+                var r = approveRoot.req
+                if (!r) return ""
+                var parts = [r.type === "tv" ? root.t("type.tv") : root.t("type.movie")]
+                if (r.is4k) parts.push("4K")
+                if (r.requestedBy) parts.push(root.t("notify.by").arg(r.requestedBy.name))
+                return parts.join(" · ")
+              }
+            }
+          }
+        }
+
         Hint {
           width: parent.width
           visible: root.formLoading
@@ -987,7 +1137,7 @@ Panel {
           visible: root.formServers.length > 0 && !!root.form
           label: approveRoot.req && approveRoot.req.type === "tv" ? root.t("approve.sonarr") : root.t("approve.radarr")
           current: root.form ? String(root.form.serverId) : ""
-          options: root.formServers.map(function(s) { return { value: String(s.id), label: s.name + (s.isDefault ? " ★" : "") } })
+          options: root.formServers.map(function(s) { return { value: String(s.id), label: s.isDefault ? root.t("approve.defaultServer").arg(s.name) : s.name } })
           foreground: root.foreground
           fontFamily: root.fontFamily
           onChanged: function(v) { root.selectServer(parseInt(v, 10)) }
@@ -1071,8 +1221,6 @@ Panel {
             }
           }
         }
-
-        FlashLine { width: parent.width }
 
         Flow {
           width: parent.width
@@ -1212,9 +1360,9 @@ Panel {
               else root.flash(root.svc ? root.svc.keyMessage : "", true)
             }
           }
+          // Rarely used: kept plain rather than alarming red.
           ActionButton {
             label: root.t("action.remove")
-            danger: true
             visible: !!root.svc && root.svc.keyState === "ok"
             onActivated: root.svc.clearKey()
           }
@@ -1241,7 +1389,12 @@ Panel {
           color: !!root.svc && (root.svc.connection === "error" || root.svc.keyMessage !== "" || (root.svc.connection === "connected" && !root.svc.canManage)) ? root.urgent : root.dim
         }
 
-        FlashLine { width: parent.width }
+        SettingChoice {
+          key: "refreshIntervalSec"
+          numeric: true
+          label: root.t("settings.refreshInterval")
+          options: [15, 30, 60, 120, 300, 600, 1800, 3600].map(function(v) { return { value: String(v), label: settingsRoot.intervalLabel(v) } })
+        }
 
         // -------- notifications
         PanelSeparator { foreground: root.foreground }
@@ -1260,12 +1413,6 @@ Panel {
           numeric: true
           label: root.t("settings.notifyGroupThreshold")
           options: [1, 2, 3, 4, 5, 10, 20].map(function(v) { return { value: String(v), label: v === 1 ? root.t("settings.groupAlways") : root.tn("settings.groupFrom", v) } })
-        }
-        SettingChoice {
-          key: "refreshIntervalSec"
-          numeric: true
-          label: root.t("settings.refreshInterval")
-          options: [15, 30, 60, 120, 300, 600, 1800, 3600].map(function(v) { return { value: String(v), label: settingsRoot.intervalLabel(v) } })
         }
 
         // -------- defaults
@@ -1362,12 +1509,29 @@ Panel {
 
   // ================================================================ parts
 
+  // "3 h ago · 9 Nov 18:55": how long ago first, the date for reference.
   function longDate(ms) {
+    if (!ms) return ""
+    return relative(ms) + " · " + shortDateTime(ms)
+  }
+
+  function shortDateTime(ms) {
     if (!ms) return ""
     var d = new Date(ms)
     var loc = Qt.locale(Commons.I18n.formatLocale)
-    return d.toLocaleDateString(loc, Locale.ShortFormat) + " " + d.toLocaleTimeString(loc, Locale.ShortFormat)
-      + "  (" + relative(ms) + ")"
+    var sameYear = d.getFullYear() === new Date().getFullYear()
+    return d.toLocaleDateString(loc, sameYear ? "d MMM" : "d MMM yyyy") + " " + d.toLocaleTimeString(loc, Locale.ShortFormat)
+  }
+
+  // Compact age for the list: "3 h", "20 min", "2 d".
+  function age(ms) {
+    return Seerr.relativeTime(ms, Math.max(now, Date.now() - 1000), {
+      now: t("age.now"),
+      minutes: function(n) { return t("age.minutes").arg(n) },
+      hours: function(n) { return t("age.hours").arg(n) },
+      days: function(n) { return t("age.days").arg(n) },
+      date: function(v) { return new Date(v).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), "d MMM yyyy") }
+    })
   }
 
   function relative(ms) {
@@ -1387,7 +1551,7 @@ Panel {
     readonly property var media: req && root.svc ? (root.svc.mediaRevision, root.svc.mediaFor(req)) : null
     readonly property string status: Seerr.statusKey(req)
     readonly property bool busy: !!req && !!root.svc && root.svc.isBusy(req.id)
-    readonly property bool actionable: !!req && req.status === Seerr.REQUEST_PENDING && !!root.svc && !!root.svc && root.svc.canManage
+    readonly property bool actionable: !!req && req.status === Seerr.REQUEST_PENDING && !!root.svc && root.svc.canManage && !root.offline
 
     // Only while the list itself has the keyboard (or under the mouse), so
     // a focused filter or search field is not shown alongside a lit row.
@@ -1425,22 +1589,34 @@ Panel {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignVCenter
         spacing: Style.space(3)
-        RowLayout {
+        // The title gets all the room the year and the 4K tag leave, and is
+        // only cut when it really does not fit; the year always shows.
+        Item {
+          id: titleLine
           Layout.fillWidth: true
-          spacing: Style.space(6)
+          implicitHeight: rowTitle.implicitHeight
+          readonly property real tail: (rowYear.visible ? rowYear.implicitWidth + Style.space(6) : 0)
+                                     + (row4k.visible ? row4k.implicitWidth + Style.space(6) : 0)
           PlainText {
             id: rowTitle
-            Layout.fillWidth: true
-            Layout.maximumWidth: rowTitle.implicitWidth
-            text: row.req && root.svc ? root.svc.titleFor(row.req) : ""
+            width: Math.min(implicitWidth, titleLine.width - titleLine.tail)
+            text: row.req && root.svc ? root.svc.nameFor(row.req) : ""
             elide: Text.ElideRight
           }
+          PlainText {
+            id: rowYear
+            x: rowTitle.width + Style.space(6)
+            visible: text !== ""
+            text: row.req && root.svc ? (root.svc.mediaRevision, root.svc.yearFor(row.req)) : ""
+            color: root.dim
+          }
           Tag {
+            id: row4k
+            x: rowTitle.width + Style.space(6) + (rowYear.visible ? rowYear.implicitWidth + Style.space(6) : 0)
+            anchors.verticalCenter: rowTitle.verticalCenter
             visible: !!row.req && row.req.is4k
-            Layout.alignment: Qt.AlignVCenter
             text: "4K"
           }
-          Item { Layout.fillWidth: true }
         }
         PlainText {
           Layout.fillWidth: true
@@ -1453,7 +1629,7 @@ Panel {
             var parts = [(r.type === "tv" ? root.gTv + " " + root.t("type.tv") : root.gMovie + " " + root.t("type.movie"))]
             if (r.type === "tv" && r.seasons.length) parts.push(root.t("detail.seasonsShort").arg(Seerr.seasonsLabel(r.seasons)))
             if (r.requestedBy) parts.push(r.requestedBy.name)
-            parts.push(root.relative(root.svc && root.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
+            parts.push(root.age(root.svc && root.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
             return parts.join(" · ")
           }
         }
@@ -1463,6 +1639,7 @@ Panel {
         visible: !row.actionable
         Layout.alignment: Qt.AlignVCenter
         status: row.status
+        compact: true
       }
       IconButton {
         visible: row.actionable
@@ -1490,6 +1667,9 @@ Panel {
     property string title: ""
     property string subtitle: ""
     property bool subtitleUrgent: false
+    property bool subtitleClickable: false
+    property string subtitleTooltip: ""
+    signal subtitleClicked()
     property bool showBack: false
     default property alias actions: actionRow.data
     spacing: Style.space(8)
@@ -1521,9 +1701,20 @@ Panel {
         Layout.fillWidth: true
         visible: text !== ""
         text: topBar.subtitle
-        color: topBar.subtitleUrgent ? root.urgent : root.dim
+        color: topBar.subtitleUrgent ? root.urgent : (subMouse.containsMouse && topBar.subtitleClickable ? root.accent : root.dim)
         font.pixelSize: Style.font.caption
+        font.underline: subMouse.containsMouse && topBar.subtitleClickable
         elide: Text.ElideRight
+        MouseArea {
+          id: subMouse
+          width: Math.min(parent.width, parent.implicitWidth)
+          height: parent.height
+          enabled: topBar.subtitleClickable
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: topBar.subtitleClicked()
+        }
+        PanelToolTip { visible: subMouse.containsMouse && topBar.subtitleClickable && topBar.subtitleTooltip !== ""; text: topBar.subtitleTooltip; fontFamily: root.fontFamily }
       }
     }
     Row {
@@ -1563,22 +1754,36 @@ Panel {
     }
   }
 
+  // A status as an icon and a word; `compact` uses the short word, for the
+  // list, where the title needs the room.
   component StatusBadge: Rectangle {
     id: badge
     property string status: "unknown"
+    property bool compact: false
     readonly property color tone: root.statusColor(status)
-    implicitWidth: badgeLabel.implicitWidth + Style.space(12)
-    implicitHeight: badgeLabel.implicitHeight + Style.space(4)
+    implicitWidth: badgeRow.implicitWidth + Style.space(12)
+    implicitHeight: badgeRow.implicitHeight + Style.space(4)
     radius: height / 2
     color: Util.alpha(tone, 0.14)
     border.width: 1
     border.color: Util.alpha(tone, 0.5)
-    PlainText {
-      id: badgeLabel
+    Behavior on color { ColorAnimation { duration: Style.duration(250) } }
+    Row {
+      id: badgeRow
       anchors.centerIn: parent
-      text: root.t("status." + badge.status)
-      color: badge.tone
-      font.pixelSize: Style.font.caption
+      spacing: Style.space(4)
+      PlainText {
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.statusGlyph(badge.status)
+        color: badge.tone
+        font.pixelSize: Style.font.caption
+      }
+      PlainText {
+        anchors.verticalCenter: parent.verticalCenter
+        text: badge.compact ? root.t("statusShort." + badge.status) : root.t("status." + badge.status)
+        color: badge.tone
+        font.pixelSize: Style.font.caption
+      }
     }
   }
 
@@ -1725,6 +1930,8 @@ Panel {
     property string tooltip: ""
     property color color: root.foreground
     property bool busy: false
+    // Turns while something it started is under way (refresh).
+    property bool spinning: false
     signal activated(int modifiers)
     implicitWidth: Style.space(26)
     implicitHeight: Style.space(26)
@@ -1735,10 +1942,18 @@ Panel {
       color: ibMouse.containsMouse && ib.enabled && !ib.busy ? Style.hoverFillFor(root.foreground, root.accent) : "transparent"
     }
     PlainText {
+      id: ibGlyph
       anchors.centerIn: parent
       text: ib.glyph
       color: ib.color
       font.pixelSize: Style.font.icon
+      RotationAnimator on rotation {
+        running: ib.spinning
+        from: 0; to: 360
+        duration: 900
+        loops: Animation.Infinite
+        onRunningChanged: if (!running) ibGlyph.rotation = 0
+      }
     }
     MouseArea {
       id: ibMouse
@@ -1806,12 +2021,120 @@ Panel {
     }
   }
 
-  component FlashLine: PlainText {
-    visible: root.flashText !== ""
-    text: root.flashText
-    color: root.flashError ? root.urgent : root.dim
-    font.pixelSize: Style.font.bodySmall
-    wrapMode: Text.WordWrap
+  // A page fades in when it is shown.
+  component FadeIn: NumberAnimation {
+    from: 0.35; to: 1
+    duration: Style.duration(140)
+    easing.type: Easing.OutCubic
+    running: target ? target.visible : false
+  }
+
+  // Results and errors, sliding up from the bottom of the panel.
+  component Toast: Rectangle {
+    id: toast
+    readonly property bool shown: root.flashText !== ""
+    readonly property color tone: root.flashError ? root.urgent : root.statusColor("available")
+    // Keeps the last text while it fades out.
+    property string text: ""
+    property bool error: false
+    Connections {
+      target: root
+      function onFlashSerialChanged() { toast.text = root.flashText; toast.error = root.flashError; pop.restart() }
+    }
+    width: Math.min(parent.width - Style.space(24), toastRow.implicitWidth + Style.space(24))
+    height: toastRow.implicitHeight + Style.space(14)
+    radius: Style.cornerRadius
+    color: Commons.Color.background
+    border.width: 1
+    border.color: Util.alpha(tone, 0.7)
+    opacity: shown ? 1 : 0
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: shown ? Style.space(2) : -Style.space(10)
+    visible: opacity > 0
+    Behavior on opacity { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
+    Behavior on anchors.bottomMargin { NumberAnimation { duration: Style.duration(260); easing.type: Easing.OutBack } }
+    Rectangle {
+      anchors.fill: parent
+      radius: parent.radius
+      color: Util.alpha(toast.tone, 0.12)
+    }
+    RowLayout {
+      id: toastRow
+      anchors.centerIn: parent
+      width: Math.min(implicitWidth, toast.parent.width - Style.space(48))
+      spacing: Style.space(8)
+      PlainText {
+        id: toastIcon
+        text: toast.error ? root.gAlert : root.gCheck
+        color: toast.tone
+        font.pixelSize: Style.font.icon
+        Layout.alignment: Qt.AlignTop
+        // A small bounce each time a new message arrives.
+        SequentialAnimation on scale {
+          id: pop
+          running: false
+          NumberAnimation { from: 0.4; to: 1.25; duration: Style.duration(160); easing.type: Easing.OutCubic }
+          NumberAnimation { to: 1; duration: Style.duration(140); easing.type: Easing.InOutQuad }
+        }
+      }
+      PlainText {
+        Layout.fillWidth: true
+        Layout.maximumWidth: toast.parent ? toast.parent.width - Style.space(80) : 300
+        text: toast.text
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
+      }
+    }
+  }
+
+  // Shown above stale rows while Seerr does not answer.
+  component OfflineBanner: Rectangle {
+    id: banner
+    implicitHeight: bannerRow.implicitHeight + Style.space(12)
+    radius: Style.cornerRadius
+    color: Util.alpha(root.retrying ? root.dim : root.urgent, 0.12)
+    border.width: 1
+    border.color: Util.alpha(root.retrying ? root.dim : root.urgent, 0.5)
+    RowLayout {
+      id: bannerRow
+      anchors.fill: parent
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(6)
+      spacing: Style.space(8)
+      PlainText {
+        text: root.gWarning
+        color: root.retrying ? root.dim : root.urgent
+        Layout.alignment: Qt.AlignVCenter
+      }
+      ColumnLayout {
+        Layout.fillWidth: true
+        spacing: Style.space(1)
+        PlainText {
+          Layout.fillWidth: true
+          text: root.svc && root.svc.lastOkAt > 0
+            ? root.t("list.offlineSince").arg(new Date(root.svc.lastOkAt).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat))
+            : root.t("list.offlineTitle")
+          font.pixelSize: Style.font.bodySmall
+          font.bold: true
+          elide: Text.ElideRight
+        }
+        PlainText {
+          Layout.fillWidth: true
+          text: root.svc ? root.svc.lastError : ""
+          color: root.dim
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+      }
+      ActionButton {
+        Layout.alignment: Qt.AlignVCenter
+        label: root.t("action.retry")
+        glyph: root.gRetry
+        busy: root.retrying
+        onActivated: root.svc.refresh()
+      }
+    }
   }
 
   component FieldLabel: PlainText {

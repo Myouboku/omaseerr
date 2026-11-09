@@ -4,7 +4,7 @@
 
 ![OmaSeerr panel](preview.png)
 
-- **Bar icon** in the accent color while requests are pending (red when Seerr is unreachable); the tooltip gives the count.
+- **Bar icon** in the accent color while requests are pending, a red warning sign when Seerr is unreachable; the tooltip gives the count. Right-click refreshes, middle-click opens Seerr.
 - **Panel**: requests with posters, filter by status and media type, sort by request or update date, search by title or user.
 - **Details**: poster, synopsis, genres, requested seasons, who asked and when, who handled it.
 - **Approve with options**: choose the Radarr/Sonarr server, quality profile, root folder, language profile, tags and seasons, like Seerr's own approval dialog (anime defaults included). **Shift+click** (or `A`) approves straight away with Seerr's defaults.

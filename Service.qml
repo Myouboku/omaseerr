@@ -62,6 +62,8 @@ Item {
   // "unconfigured" | "connecting" | "connected" | "error"
   property string connection: "unconfigured"
   property string lastError: ""
+  // When Seerr last answered, so an outage can say since when.
+  property double lastOkAt: 0
   property var me: null
   property bool canManage: true
   property var counts: Seerr.normalizeCounts(null)
@@ -190,12 +192,19 @@ Item {
     }
   }
 
-  function reconnect() {
+  // `retry` is a new attempt at the same server after an error: what was
+  // already shown stays (greyed by the panel) instead of going blank.
+  function reconnect(retry) {
     _generation++
     abortAll()
     _polling = false
     listLoading = false
     busy = ({})
+    if (retry === true && connection === "error" && keyMatches(baseUrl)) {
+      connection = "connecting"
+      api("GET", "/auth/me", null, root.onAuthAnswer)
+      return
+    }
     _known = ({})
     knownRevision++
     me = null
@@ -218,17 +227,21 @@ Item {
     }
     connection = "connecting"
     lastError = ""
-    api("GET", "/auth/me", null, function(res) {
-      if (!res.ok) { fail(res); return }
-      root.me = Seerr.normalizeUser(res.data)
-      var perms = res.data && typeof res.data.permissions === "number" ? res.data.permissions : 0
-      // ADMIN (2) or MANAGE_REQUESTS (16).
-      root.canManage = (perms & 2) !== 0 || (perms & 16) !== 0
-      root.connection = "connected"
-      root.lastError = ""
-      root.poll()
-      if (root.openPanels > 0) root.reloadList()
-    })
+    lastOkAt = 0
+    api("GET", "/auth/me", null, root.onAuthAnswer)
+  }
+
+  function onAuthAnswer(res) {
+    if (!res.ok) { fail(res); return }
+    me = Seerr.normalizeUser(res.data)
+    var perms = res.data && typeof res.data.permissions === "number" ? res.data.permissions : 0
+    // ADMIN (2) or MANAGE_REQUESTS (16).
+    canManage = (perms & 2) !== 0 || (perms & 16) !== 0
+    connection = "connected"
+    lastError = ""
+    lastOkAt = Date.now()
+    poll()
+    if (openPanels > 0) reloadList()
   }
 
   function fail(res) {
@@ -470,7 +483,7 @@ Item {
     repeat: true
     running: root.connection === "connected" || root.connection === "error"
     onTriggered: {
-      if (root.connection === "error") root.reconnect()
+      if (root.connection === "error") root.reconnect(true)
       else root.poll()
     }
   }
@@ -478,7 +491,7 @@ Item {
   property bool _polling: false
 
   function refresh() {
-    if (connection !== "connected") { reconnect(); return }
+    if (connection !== "connected") { reconnect(true); return }
     poll()
     if (openPanels > 0) reloadList()
   }
@@ -489,6 +502,7 @@ Item {
     api("GET", "/request/count", null, function(res) {
       if (!res.ok) { root._polling = false; root.fail(res); return }
       root.counts = Seerr.normalizeCounts(res.data)
+      root.lastOkAt = Date.now()
       root.pollPending()
     })
   }
@@ -685,6 +699,18 @@ Item {
     })
   }
 
+  // The title alone and its year, for layouts that keep the year when the
+  // title has to be cut.
+  function nameFor(req) {
+    var m = mediaFor(req)
+    if (m && m.title) return m.title
+    return req ? (req.type === "tv" ? t("type.tv") : t("type.movie")) + " #" + req.tmdbId : ""
+  }
+  function yearFor(req) {
+    var m = mediaFor(req)
+    return m && m.title && m.year ? String(m.year) : ""
+  }
+
   function titleFor(req) {
     var m = mediaFor(req)
     if (m && m.title) return m.year ? m.title + " (" + m.year + ")" : m.title
@@ -709,10 +735,14 @@ Item {
     busy = next
   }
 
+  // actionDone carries the error on failure and the request's title on
+  // success, read before a deleted request is forgotten.
   function afterAction(id, action, res, updated, notify) {
     setBusy(id, false)
     var ok = res.ok
     var message = ok ? "" : describeError(res)
+    var known = requestById(id) || updated
+    var title = known ? titleFor(known) : ""
     if (ok) {
       if (action === "delete") {
         rows = Seerr.removeRequest(rows, id)
@@ -725,7 +755,7 @@ Item {
       poll()
       if (openPanels > 0) refreshListQuietly()
     }
-    actionDone(id, action, ok, message)
+    actionDone(id, action, ok, ok ? title : message)
     if (notify) announceResult(id, action, ok, message, updated)
   }
 

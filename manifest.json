@@ -35,18 +35,18 @@
       "confirmDecline": true
     },
     "schema": [
-      { "key": "url", "type": "string", "label": "Seerr URL", "defaultValue": "",
+      { "key": "url", "type": "string", "label": "Seerr address", "defaultValue": "",
         "description": "http:// or https:// address of your Seerr instance. The API key is not set here: it lives in the keyring and is entered from the panel's settings." },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Check for new requests every (seconds)", "min": 15, "max": 3600, "step": 15, "defaultValue": 60 },
-      { "key": "notifyNewRequests", "type": "boolean", "label": "Notify new requests", "defaultValue": true,
+      { "key": "notifyNewRequests", "type": "boolean", "label": "Notify about new requests", "defaultValue": true,
         "description": "Notifications carry Details, Approve and Decline buttons. Approve from a notification uses Seerr's defaults." },
-      { "key": "notifyStatusChanges", "type": "boolean", "label": "Notify status changes", "defaultValue": false,
+      { "key": "notifyStatusChanges", "type": "boolean", "label": "Notify about status changes", "defaultValue": false,
         "description": "When a request becomes available or fails." },
-      { "key": "notifyOnStartup", "type": "boolean", "label": "Announce existing requests on first connection", "defaultValue": false },
+      { "key": "notifyOnStartup", "type": "boolean", "label": "Also notify requests already pending when connecting", "defaultValue": false },
       { "key": "notifyUrgency", "type": "enum", "label": "Notification urgency", "options": ["low", "normal", "critical"], "defaultValue": "normal" },
-      { "key": "notifyPoster", "type": "boolean", "label": "Poster in notifications", "defaultValue": true,
+      { "key": "notifyPoster", "type": "boolean", "label": "Posters in notifications", "defaultValue": true,
         "description": "Downloaded from image.tmdb.org and cached in ~/.cache/omaseerr." },
-      { "key": "notifyGroupThreshold", "type": "integer", "label": "Group notifications from this many new requests", "min": 1, "max": 20, "step": 1, "defaultValue": 3,
+      { "key": "notifyGroupThreshold", "type": "integer", "label": "Group notifications from this many at once", "min": 1, "max": 20, "step": 1, "defaultValue": 3,
         "description": "1 never groups." },
       { "key": "defaultFilter", "type": "enum", "label": "Default status filter",
         "options": ["pending", "approved", "processing", "available", "failed", "declined", "all"], "defaultValue": "pending" },
@@ -54,7 +54,7 @@
       { "key": "defaultSort", "type": "enum", "label": "Default sort", "options": ["added", "modified"], "defaultValue": "added" },
       { "key": "defaultSortDirection", "type": "enum", "label": "Default order", "options": ["desc", "asc"], "defaultValue": "desc" },
       { "key": "pageSize", "type": "integer", "label": "Requests per page", "min": 5, "max": 100, "step": 5, "defaultValue": 20 },
-      { "key": "showPosters", "type": "boolean", "label": "Show posters", "defaultValue": true,
+      { "key": "showPosters", "type": "boolean", "label": "Posters in the panel", "defaultValue": true,
         "description": "Loaded from image.tmdb.org." },
       { "key": "confirmDecline", "type": "boolean", "label": "Confirm before declining", "defaultValue": true }
     ]
