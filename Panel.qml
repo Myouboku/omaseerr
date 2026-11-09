@@ -665,7 +665,7 @@ Panel {
       anchors.bottom: listKeys.visible ? listKeys.top : parent.bottom
       anchors.bottomMargin: listKeys.visible ? listKeys.topMargin : 0
       contentWidth: width
-      contentHeight: rowCol.implicitHeight + footer.anchors.topMargin + footer.implicitHeight + Style.space(4)
+      contentHeight: rowCol.implicitHeight + footer.gap + footer.implicitHeight + Style.space(4)
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       interactive: contentHeight > height
@@ -689,10 +689,12 @@ Panel {
         }
       }
 
+      // Below the rows, or centred in the empty list when there are none.
       Column {
         id: footer
-        anchors.top: rowCol.bottom
-        anchors.topMargin: Style.space(6)
+        readonly property real gap: Style.space(6)
+        y: root.visibleRows.length > 0 ? rowCol.implicitHeight + gap
+                                       : Math.max(0, Math.round((flick.height - implicitHeight) / 2))
         width: flick.width
         spacing: Style.space(6)
 
