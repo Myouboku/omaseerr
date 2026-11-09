@@ -1,9 +1,9 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import "model/Seerr.js" as Seerr
+import "service"
 
 // The one OmaSeerr instance per shell. It owns the connection (URL from the
 // bar entry's settings, API key from the keyring), polls Seerr, announces new
@@ -70,21 +70,8 @@ Item {
   readonly property int pendingCount: counts.pending
 
   // "loading" | "missing" | "ok" | "error"
-  property string keyState: "loading"
-  property string keyMessage: ""
-  property string _apiKey: ""
-  // The origin _apiKey was read for. The key is only sent to a URL of that
-  // origin, so a URL change can never carry it to another server.
-  property string _keyOrigin: ""
-  property bool _keyReloadQueued: false
-  // Whether the key may go to `url`. Computed from the URL itself, never from
-  // the keyOrigin binding: during a URL change, onBaseUrlChanged can run
-  // before that binding catches up, and the old key would leave for the new
-  // server.
-  function keyMatches(url) {
-    return keyState === "ok" && _apiKey !== "" && _keyOrigin !== "" && !!url && Seerr.keyOrigin(url) === _keyOrigin
-  }
-  property string _pendingKey: ""
+  readonly property alias keyState: keyring.state
+  readonly property alias keyMessage: keyring.message
 
   // Panels open across monitors; while any is, the list follows each poll.
   property int openPanels: 0
@@ -140,26 +127,22 @@ Item {
   // Request ids with an action in flight.
   property var busy: ({})
 
-  // Seen ids and last statuses, persisted so a restart does not re-announce.
-  property var _state: Seerr.parseState("")
-  property bool _stateLoaded: false
-
-  readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omaseerr"
-  readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/omaseerr"
-  property bool dirsReady: false
+  readonly property alias stateDir: stateFile.stateDir
+  readonly property alias cacheDir: stateFile.cacheDir
+  readonly property alias dirsReady: stateFile.dirsReady
 
   signal actionDone(int requestId, string action, bool ok, string message)
 
   // ---------------------------------------------------------------- lifecycle
 
   Component.onCompleted: {
-    prepareDirs.running = true
-    loadKey()
+    stateFile.prepare()
+    keyring.load()
   }
 
   onBaseUrlChanged: reconnect()
   // Another server: its key, or none, never the previous one's.
-  onKeyOriginChanged: loadKey()
+  onKeyOriginChanged: keyring.load()
 
   // A language switch changes the titles Seerr hands back.
   Connections {
@@ -195,12 +178,11 @@ Item {
   // `retry` is a new attempt at the same server after an error: what was
   // already shown stays (greyed by the panel) instead of going blank.
   function reconnect(retry) {
-    _generation++
-    abortAll()
+    http.reset()
     _polling = false
     listLoading = false
     busy = ({})
-    if (retry === true && connection === "error" && keyMatches(baseUrl)) {
+    if (retry === true && connection === "error" && keyring.matches(baseUrl)) {
       connection = "connecting"
       api("GET", "/auth/me", null, root.onAuthAnswer)
       return
@@ -220,7 +202,7 @@ Item {
     // Another server has other Radarr/Sonarr servers, profiles and folders.
     _servers = ({})
     _serverDetails = ({})
-    if (!keyMatches(baseUrl)) {
+    if (!keyring.matches(baseUrl)) {
       connection = "unconfigured"
       lastError = ""
       return
@@ -265,215 +247,38 @@ Item {
     return res.message ? res.message : t("error.http").arg(res.status)
   }
 
-  // ---------------------------------------------------------------- keyring
+  // ---------------------------------------------------------------- modules
 
-  function validKey(key) {
-    return /^[A-Za-z0-9+\/=_-]{8,256}$/.test(String(key || ""))
+  Keyring {
+    id: keyring
+    svc: root
+    onLoaded: root.reconnect()
   }
 
-  // Reads the key stored for the current origin. A lookup already running
-  // for another origin is followed by a fresh one rather than trusted.
-  function loadKey() {
-    if (keyLookup.running) { _keyReloadQueued = true; return }
-    _keyReloadQueued = false
-    _apiKey = ""
-    _keyOrigin = ""
-    if (!keyOrigin) {
-      keyState = "missing"
-      keyMessage = ""
-      reconnect()
-      return
-    }
-    keyState = "loading"
-    keyLookup.origin = keyOrigin
-    keyLookup.running = true
+  Http {
+    id: http
+    svc: root
+    keyring: keyring
   }
 
-  // Returns false when the key is malformed or there is no URL to bind it
-  // to; the result arrives through keyState / keyMessage.
-  function storeKey(key) {
-    var k = String(key || "").trim()
-    if (!keyOrigin) { keyMessage = t("key.needUrl"); return false }
-    if (!validKey(k)) { keyMessage = t("key.invalid"); return false }
-    if (keyStore.running) { keyMessage = t("key.busy"); return false }
-    _pendingKey = k
-    keyMessage = ""
-    keyStore.origin = keyOrigin
-    keyStore.running = true
-    return true
+  StateFile {
+    id: stateFile
+    onRead: root.poll()
   }
 
-  // Removes the key of the current origin only.
-  function clearKey() {
-    if (keyClear.running || !keyOrigin) return
-    keyClear.origin = keyOrigin
-    keyClear.running = true
+  Notifier {
+    id: notifier
+    svc: root
+    store: root
+    canManage: root.canManage
+    posterDir: stateFile.cacheDir + "/posters"
+    postersReady: stateFile.dirsReady
   }
 
-  Process {
-    id: keyLookup
-    property string origin: ""
-    command: ["secret-tool", "lookup", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
-    stdout: StdioCollector { id: keyLookupOut; waitForEnd: true }
-    stderr: StdioCollector { id: keyLookupErr; waitForEnd: true }
-    onExited: function(code) {
-      // The URL changed while this ran: its answer belongs to another server.
-      if (root._keyReloadQueued || keyLookup.origin !== root.keyOrigin) {
-        Qt.callLater(root.loadKey)
-        return
-      }
-      var key = String(keyLookupOut.text || "").trim()
-      if (code === 0 && root.validKey(key)) {
-        root._apiKey = key
-        root._keyOrigin = keyLookup.origin
-        root.keyState = "ok"
-        root.keyMessage = ""
-      } else {
-        root._apiKey = ""
-        root._keyOrigin = ""
-        // secret-tool exits 1 with no output when nothing is stored.
-        var err = String(keyLookupErr.text || "").trim()
-        root.keyState = code === 1 && err === "" && key === "" ? "missing" : "error"
-        root.keyMessage = root.keyState === "error" ? (err ? Seerr.str(err, 200) : root.t("key.lookupFailed")) : ""
-      }
-      root.reconnect()
-    }
-  }
-
-  // The key travels on stdin, never in argv where /proc would show it.
-  Process {
-    id: keyStore
-    property string origin: ""
-    command: ["secret-tool", "store", "--label=OmaSeerr (Seerr API key for " + origin + ")",
-      "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
-    stdinEnabled: true
-    stderr: StdioCollector { id: keyStoreErr; waitForEnd: true }
-    onStarted: {
-      write(root._pendingKey)
-      root._pendingKey = ""
-      keyStore.stdinEnabled = false
-    }
-    onExited: function(code) {
-      keyStore.stdinEnabled = true
-      if (code !== 0) {
-        root.keyMessage = Seerr.str(String(keyStoreErr.text || "").trim(), 200) || root.t("key.storeFailed")
-        return
-      }
-      root.keyMessage = ""
-      root.loadKey()
-    }
-  }
-
-  Process {
-    id: keyClear
-    property string origin: ""
-    command: ["secret-tool", "clear", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
-    onExited: function() { root.loadKey() }
-  }
-
-  // ---------------------------------------------------------------- HTTP
-
-  property int _generation: 0
-  // Calls waiting for a slot, and calls whose curl is running.
-  property var _queue: []
-  property var _inflight: []
-  readonly property int maxParallel: 6
-  readonly property int requestTimeoutSec: 15
-
-  // cb({ ok, status, data, error, message, location }). Callbacks from a
-  // superseded connection (URL or key changed meanwhile) are dropped. The
-  // request runs through curl, which does not follow redirects: see
-  // Seerr.curlConfig.
-  function api(method, path, body, cb) {
-    // Checked against the very URL requested below.
-    var target = baseUrl
-    if (!keyMatches(target)) {
-      cb({ ok: false, status: 0, error: "notConfigured" })
-      return
-    }
-    var generation = _generation
-    var call = {
-      config: Seerr.curlConfig(method, target + Seerr.API_PREFIX + path, _apiKey, body),
-      proc: null, deadline: 0, done: false, finish: null
-    }
-    call.finish = function(result) {
-      if (call.done) return
-      call.done = true
-      call.config = ""
-      var at = root._inflight.indexOf(call)
-      if (at !== -1) root._inflight.splice(at, 1)
-      Qt.callLater(root.pump)
-      if (generation !== root._generation) return
-      cb(result)
-    }
-    _queue.push(call)
-    pump()
-  }
-
-  // Starts queued calls while there is room.
-  function pump() {
-    while (_inflight.length < maxParallel && _queue.length > 0) {
-      var call = _queue.shift()
-      if (call.done) continue
-      call.deadline = Date.now() + (requestTimeoutSec + 5) * 1000
-      call.proc = curlProcess.createObject(root, { call: call, command: Seerr.curlArgv(requestTimeoutSec) })
-      if (!call.proc) { call.finish({ ok: false, status: 0, error: "network" }); continue }
-      _inflight.push(call)
-      call.proc.running = true
-      watchdog.running = true
-    }
-  }
-
-  function abortAll() {
-    var queued = _queue
-    _queue = []
-    for (var i = 0; i < queued.length; i++) queued[i].done = true
-    var calls = _inflight.slice()
-    _inflight = []
-    for (var j = 0; j < calls.length; j++) {
-      calls[j].done = true
-      calls[j].config = ""
-      if (calls[j].proc) calls[j].proc.running = false
-    }
-  }
-
-  Component {
-    id: curlProcess
-    Process {
-      id: proc
-      property var call: null
-      stdinEnabled: true
-      stdout: StdioCollector { id: curlOut; waitForEnd: true }
-      onStarted: {
-        // The config, key included, goes in on stdin; closing it ends the read.
-        if (proc.call && !proc.call.done) write(proc.call.config)
-        proc.stdinEnabled = false
-      }
-      onExited: function(code) {
-        var call = proc.call
-        proc.call = null
-        if (call) call.finish(Seerr.parseCurlResult(code, String(curlOut.text || "")))
-        Qt.callLater(function() { proc.destroy() })
-      }
-    }
-  }
-
-  // curl has its own --max-time; this only catches a process that never ends.
-  Timer {
-    id: watchdog
-    interval: 1000
-    repeat: true
-    onTriggered: {
-      var now = Date.now()
-      var calls = root._inflight.slice()
-      for (var i = 0; i < calls.length; i++) {
-        if (calls[i].deadline > now) continue
-        if (calls[i].proc) calls[i].proc.running = false
-        calls[i].finish({ ok: false, status: 0, error: "timeout" })
-      }
-      if (root._inflight.length === 0) watchdog.running = false
-    }
-  }
+  function api(method, path, body, cb) { http.api(method, path, body, cb) }
+  function storeKey(key) { return keyring.store(key) }
+  function clearKey() { keyring.clear() }
+  function loadKey() { keyring.load() }
 
   // ---------------------------------------------------------------- polling
 
@@ -514,7 +319,7 @@ Item {
       root.handlePending(pending)
       // Before the saved state is read, comparing statuses (and saving them)
       // would write over it.
-      if (root.settings.notifyStatusChanges && root._stateLoaded) root.pollStatuses()
+      if (root.settings.notifyStatusChanges && stateFile.loaded) root.pollStatuses()
       else {
         root._polling = false
         if (root.openPanels > 0) root.refreshListQuietly()
@@ -527,16 +332,16 @@ Item {
       root._polling = false
       if (!res.ok) { root.fail(res); return }
       var recent = Seerr.normalizeRequestList(res.data).requests
-      var changes = Seerr.statusChanges(root._state.statuses, recent)
+      var changes = Seerr.statusChanges(stateFile.state.statuses, recent)
       var next = Seerr.statusMap(recent)
-      var st = root._state
-      root._state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed }
-      root.saveState()
+      var st = stateFile.state
+      stateFile.state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed }
+      stateFile.save()
       if (st.primed) {
         for (var i = 0; i < changes.length; i++) {
           var req = null
           for (var j = 0; j < recent.length; j++) if (recent[j].id === changes[i].id) req = recent[j]
-          if (req) root.announceStatus(req, changes[i].to)
+          if (req) notifier.announceStatus(req, changes[i].to)
         }
       }
       if (root.openPanels > 0) root.refreshListQuietly()
@@ -544,23 +349,19 @@ Item {
   }
 
   function handlePending(pending) {
-    if (!_stateLoaded) return
-    var st = _state
+    if (!stateFile.loaded) return
+    var st = stateFile.state
     var firstRun = !st.primed || st.url !== baseUrl
     var fresh = Seerr.newRequestIds(firstRun ? [] : st.seen, pending)
     var seen = Seerr.rememberIds(firstRun ? [] : st.seen, pending.map(function(r) { return r.id }))
-    _state = { url: baseUrl, seen: seen, statuses: firstRun ? Seerr.statusMap(pending) : st.statuses, primed: true }
-    saveState()
-    if (!settings.notifyNewRequests) return
+    stateFile.state = { url: baseUrl, seen: seen, statuses: firstRun ? Seerr.statusMap(pending) : st.statuses, primed: true }
+    stateFile.save()
     // Requests already pending on a first connection to a server were not
     // missed: they are only recorded as seen.
     if (firstRun) return
     var announce = pending.filter(function(r) { return fresh.indexOf(r.id) !== -1 })
     if (announce.length === 0) return
-    // A threshold of 1 means never group.
-    var threshold = settings.notifyGroupThreshold
-    if (threshold > 1 && announce.length >= threshold) announceMany(announce)
-    else for (var i = announce.length - 1; i >= 0; i--) announceNew(announce[i])
+    notifier.announceArrivals(announce)
   }
 
   // ---------------------------------------------------------------- list
@@ -758,7 +559,7 @@ Item {
       if (openPanels > 0) refreshListQuietly()
     }
     actionDone(id, action, ok, ok ? title : message)
-    if (notify) announceResult(id, action, ok, message, updated)
+    if (notify) notifier.announceResult(id, action, ok, message, updated)
   }
 
   // Seerr's own defaults: no form, straight to approve.
@@ -792,7 +593,7 @@ Item {
       // Not looked up here: the same id names another request on this server.
       var message = describeError({ error: "otherServer" })
       actionDone(id, action, false, message)
-      sendNotification(t("notify.actionFailed").arg("#" + id), message, "", 0, false, "normal")
+      notifier.sendNotification(t("notify.actionFailed").arg("#" + id), message, "", 0, false, "normal")
       return "other server"
     }
     setBusy(id, true)
@@ -884,171 +685,6 @@ Item {
       root._serverDetails = next
       cb(value, null)
     })
-  }
-
-  // ---------------------------------------------------------------- notifications
-
-  readonly property string notifySend: omarchyPath + "/bin/omarchy-notification-send"
-  readonly property string shellCli: omarchyPath + "/bin/omarchy-shell"
-  readonly property string glyph: "\u{f0fce}"
-
-  // omarchy-notification-send reads a leading-dash headline or body as an
-  // option; a word joiner keeps text from Seerr from ever looking like one.
-  function safeArg(text) {
-    var s = String(text || "")
-    return s.charAt(0) === "-" ? "⁠" + s : s
-  }
-
-  function sendNotification(summary, body, imagePath, requestId, withActions, urgency) {
-    var argv = [notifySend, "--app-name", "Seerr", "-g", glyph, "-u", urgency || settings.notifyUrgency]
-    if (imagePath) argv.push("--image", imagePath)
-    argv.push(safeArg(summary), safeArg(Seerr.neutralizeMarkup(body)))
-    // The request, and the server it is on: see actFromOutside.
-    var target = String(requestId) + (keyOrigin ? "@" + keyOrigin : "")
-    if (withActions && requestId > 0) {
-      // The card's own click runs the first action, so the harmless one leads.
-      argv.push("--action", t("notify.details"), shellCli, pluginId, "show")
-      if (canManage) {
-        argv.push("--action", t("notify.approve"), shellCli, pluginId, "approve")
-        argv.push("--action", t("notify.decline"), shellCli, pluginId, "decline")
-      }
-      argv.push("--with", target)
-    } else if (requestId > 0) {
-      argv.push("--exec", shellCli, pluginId, "show", target)
-    } else if (requestId === -1) {
-      argv.push("--exec", shellCli, pluginId, "open")
-    }
-    Quickshell.execDetached(argv)
-  }
-
-  function requestLine(req) {
-    var parts = []
-    if (req.requestedBy) parts.push(t("notify.by").arg(req.requestedBy.name))
-    parts.push(req.type === "tv" ? t("type.tv") : t("type.movie"))
-    if (req.is4k) parts.push("4K")
-    if (req.type === "tv" && req.seasons.length) parts.push(t("detail.seasonsShort").arg(Seerr.seasonsLabel(req.seasons)))
-    return parts.join(" · ")
-  }
-
-  function announceNew(req) {
-    ensureMedia(req, function(m) {
-      var summary = t("notify.newRequest").arg(root.titleFor(req))
-      root.withPoster(m, function(path) {
-        root.sendNotification(summary, root.requestLine(req), path, req.id, true)
-      })
-    })
-  }
-
-  function announceMany(list) {
-    sendNotification(tn("notify.newRequests", list.length), t("notify.openPanel"), "", -1, false)
-  }
-
-  function announceStatus(req, statusKey) {
-    ensureMedia(req, function(m) {
-      var summary = (statusKey === "available" ? t("notify.available") : t("notify.failed")).arg(root.titleFor(req))
-      root.withPoster(m, function(path) {
-        root.sendNotification(summary, root.requestLine(req), path, req.id, false,
-          statusKey === "failed" ? "normal" : "low")
-      })
-    })
-  }
-
-  function announceResult(id, action, ok, message, updated) {
-    var finish = function(req) {
-      var title = req ? root.titleFor(req) : ("#" + id)
-      if (ok) {
-        var key = action === "approve" ? "notify.approved" : "notify.declined"
-        root.sendNotification(root.t(key).arg(title), "", "", req ? req.id : 0, false, "low")
-      } else {
-        root.sendNotification(root.t("notify.actionFailed").arg(title), message, "", id, false, "normal")
-      }
-    }
-    if (updated) ensureMedia(updated, function() { finish(updated) })
-    else fetchRequest(id, function(req) {
-      if (req) ensureMedia(req, function() { finish(req) })
-      else finish(null)
-    })
-  }
-
-  // Posters for notifications are cached files: the daemon wants a path.
-  property var _posterQueue: []
-
-  function withPoster(m, cb) {
-    var url = m && settings.notifyPoster ? Seerr.posterUrl(m.posterPath, "w185") : ""
-    if (!url || !dirsReady) { cb(""); return }
-    var file = cacheDir + "/posters/" + m.posterPath.slice(1)
-    _posterQueue.push({ url: url, file: file, cb: cb })
-    if (!posterFetch.running) nextPoster()
-  }
-
-  function nextPoster() {
-    if (_posterQueue.length === 0) return
-    var job = _posterQueue[0]
-    posterFetch.job = job
-    posterFetch.command = ["bash", "-c",
-      "[[ -s $1 ]] && exit 0\n" +
-      "tmp=$1.part\n" +
-      "curl -sfL --proto =https --max-time 10 --max-filesize 3000000 -o \"$tmp\" -- \"$2\" && mv -f -- \"$tmp\" \"$1\" || { rm -f -- \"$tmp\"; exit 1; }",
-      "omaseerr-poster", job.file, job.url]
-    posterFetch.running = true
-  }
-
-  Process {
-    id: posterFetch
-    property var job: null
-    onExited: function(code) {
-      var job = posterFetch.job
-      root._posterQueue.shift()
-      if (job) job.cb(code === 0 ? job.file : "")
-      root.nextPoster()
-    }
-  }
-
-  // ---------------------------------------------------------------- persistence
-
-  Process {
-    id: prepareDirs
-    command: ["bash", "-c",
-      "umask 077\n" +
-      "mkdir -p -- \"$1\" \"$2/posters\" && chmod 700 -- \"$1\" || exit 1\n" +
-      "f=$1/state.json\n" +
-      "[[ -L $f ]] && rm -f -- \"$f\"\n" +
-      "[[ -e $f ]] || : >\"$f\"\n" +
-      "find \"$2/posters\" -type f -mtime +30 -delete 2>/dev/null\n" +
-      "exit 0",
-      "omaseerr-state", root.stateDir, root.cacheDir]
-    onExited: function(code) { root.dirsReady = code === 0 }
-  }
-
-  FileView {
-    id: stateFile
-    path: root.dirsReady ? root.stateDir + "/state.json" : ""
-    atomicWrites: true
-    printErrors: false
-    onLoaded: {
-      root._state = Seerr.parseState(text())
-      root._stateLoaded = true
-      root.poll()
-    }
-    onLoadFailed: {
-      root._state = Seerr.parseState("")
-      root._stateLoaded = true
-    }
-  }
-
-  function saveState() {
-    // Saving before the file was read would replace what it holds.
-    if (!dirsReady || !_stateLoaded) return
-    saveTimer.restart()
-  }
-
-  Timer {
-    id: saveTimer
-    interval: 500
-    onTriggered: {
-      var st = root._state
-      stateFile.setText(JSON.stringify({ url: st.url, seen: st.seen, statuses: st.statuses, primed: st.primed }) + "\n")
-    }
   }
 
   // ---------------------------------------------------------------- IPC
