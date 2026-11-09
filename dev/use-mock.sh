@@ -57,9 +57,10 @@ case "${1:-}" in
     ;;
   status)
     url="$(shell get url)"
-    if [[ "$url" == "$MOCK_URL" ]]; then echo "on the mock ($MOCK_URL)"; else echo "on the real instance"; fi
-    mock_running && echo "mock running (pid $(cat "$DIR/mock.pid"))" || echo "mock not running"
-    shell status
+    mock_running && mock="mock running (pid $(cat "$DIR/mock.pid"))" || mock="mock not running"
+    # The plugin's own status only while on the mock: the real one is off limits.
+    if [[ "$url" == "$MOCK_URL" ]]; then echo "on the mock ($MOCK_URL)"; echo "$mock"; shell status
+    else echo "on the real instance"; echo "$mock"; fi
     ;;
   *)
     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'

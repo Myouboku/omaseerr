@@ -123,6 +123,10 @@ Panel {
   }
   property var _detailFallback: null
 
+  // True while the list page's own key handling has the keyboard, not one
+  // of its filters or the search field.
+  readonly property bool listFocused: page === "list" && !!panel.loadedContent && panel.loadedContent.activeFocus
+
   function selectedRow() {
     return visibleRows.length ? visibleRows[Math.max(0, Math.min(cursor, visibleRows.length - 1))] : null
   }
@@ -165,11 +169,44 @@ Panel {
     else close()
   }
 
+  // On the list, moves the cursor. On a request's details, steps to the
+  // previous or next request of the list, keeping the cursor on it.
   function moveCursor(dy) {
+    if (page === "detail") { stepDetail(dy); return }
     if (page !== "list" || visibleRows.length === 0) return
     cursor = Math.max(0, Math.min(visibleRows.length - 1, cursor + dy))
     scrollCursorIntoView()
     if (dy > 0 && cursor >= visibleRows.length - 3 && svc) svc.loadMore()
+  }
+
+  function stepDetail(dy) {
+    var at = -1
+    for (var i = 0; i < visibleRows.length; i++) if (visibleRows[i].id === detailId) at = i
+    if (visibleRows.length === 0) return
+    var next
+    // Gone from the list (just approved or declined under the pending
+    // filter): the next request now sits where it was, at the cursor.
+    if (at === -1) next = Math.max(0, Math.min(visibleRows.length - 1, dy > 0 ? cursor + dy - 1 : cursor + dy))
+    else next = Math.max(0, Math.min(visibleRows.length - 1, at + dy))
+    if (next === at) return
+    cursor = next
+    openDetail(visibleRows[next])
+    if (dy > 0 && next >= visibleRows.length - 3 && svc) svc.loadMore()
+  }
+
+  // Keeps the focused control in view when Tab moves to one that is
+  // scrolled out of its page.
+  function revealFocus(item) {
+    if (!item) return
+    for (var p = item.parent; p; p = p.parent) {
+      if (p.contentItem === undefined || p.contentY === undefined || p.flicking === undefined) continue
+      var y = item.mapToItem(p.contentItem, 0, 0).y
+      var margin = Style.space(6)
+      if (y < p.contentY) p.contentY = Math.max(0, y - margin)
+      else if (y + item.height > p.contentY + p.height)
+        p.contentY = Math.min(Math.max(0, p.contentHeight - p.height), y + item.height - p.height + margin)
+      return
+    }
   }
 
   function scrollCursorIntoView() {
@@ -330,8 +367,12 @@ Panel {
 
     if (key === Qt.Key_Escape) {
       var content = panel.loadedContent
-      if (page === "list" && content && content.searchField && content.searchField.activeFocus) {
-        if (svc && svc.view.search) svc.setView({ search: "" })
+      // On the list and the approval form, Escape first leaves a control
+      // (search, a dropdown, a chip, a button) for the page's own keys;
+      // the next one goes back.
+      if (content && !content.activeFocus && (page === "list" || page === "approve")) {
+        if (page === "list" && content.searchField && content.searchField.activeFocus && svc && svc.view.search)
+          svc.setView({ search: "" })
         content.forceActiveFocus()
       } else back()
       event.accepted = true
@@ -356,6 +397,8 @@ Panel {
     if (key === Qt.Key_Up || text === "k") { moveCursor(-1); event.accepted = true; return }
     if (key === Qt.Key_PageDown) { moveCursor(8); event.accepted = true; return }
     if (key === Qt.Key_PageUp) { moveCursor(-8); event.accepted = true; return }
+    if (key === Qt.Key_Home) { moveCursor(-visibleRows.length); event.accepted = true; return }
+    if (key === Qt.Key_End) { moveCursor(visibleRows.length); event.accepted = true; return }
     if (key === Qt.Key_Backspace || text === "h") {
       if (page === "detail") { back(); event.accepted = true }
       return
@@ -512,7 +555,11 @@ Panel {
         if (root.page === "settings") return settingsPage.implicitHeight
         return listPage.implicitHeight
       }
+      // On the list, Tab comes back here after the filters and the search.
+      activeFocusOnTab: root.page === "list"
       Keys.onPressed: function(event) { root.handleKey(event) }
+      readonly property Item focusedItem: Window.activeFocusItem
+      onFocusedItemChanged: Qt.callLater(function() { root.revealFocus(body.focusedItem) })
 
       ListPage { id: listPage; anchors.fill: parent; visible: root.page === "list" }
       DetailPage { id: detailPage; anchors.fill: parent; visible: root.page === "detail" }
@@ -524,6 +571,8 @@ Panel {
         anchors.fill: parent
         z: 10
         opened: root.confirmOpen
+        // Each question starts on its action, whatever was picked last time.
+        onOpenedChanged: if (opened) selectedIndex = 1
         message: root.confirmAction === "delete" ? root.t("confirm.delete") : root.t("confirm.decline")
         confirmText: root.confirmAction === "delete" ? root.t("action.delete") : root.t("action.decline")
         cancelText: root.t("action.cancel")
@@ -892,6 +941,7 @@ Panel {
     readonly property var req: root.formReq
     readonly property bool busy: !!req && !!root.svc && root.svc.isBusy(req.id)
     implicitHeight: header0.implicitHeight + Style.space(10) + formColumn.implicitHeight
+                    + approveKeys.topMargin + approveKeys.implicitHeight
 
     TopBar {
       id: header0
@@ -906,7 +956,8 @@ Panel {
       anchors.topMargin: Style.space(10)
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.bottom: parent.bottom
+      anchors.bottom: approveKeys.top
+      anchors.bottomMargin: approveKeys.topMargin
       contentWidth: width
       contentHeight: formColumn.implicitHeight
       clip: true
@@ -1049,11 +1100,22 @@ Panel {
         }
       }
     }
+
+    // Pinned below the form.
+    KeyHints {
+      id: approveKeys
+      readonly property real topMargin: Style.space(10)
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      text: root.t("approve.keys")
+    }
   }
 
   component SettingsPage: Item {
     id: settingsRoot
     implicitHeight: header0.implicitHeight + Style.space(10) + settingsColumn.implicitHeight
+                    + settingsKeys.topMargin + settingsKeys.implicitHeight
 
 
     function intervalLabel(sec) {
@@ -1072,7 +1134,8 @@ Panel {
       anchors.topMargin: Style.space(10)
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.bottom: parent.bottom
+      anchors.bottom: settingsKeys.top
+      anchors.bottomMargin: settingsKeys.topMargin
       contentWidth: width
       contentHeight: settingsColumn.implicitHeight
       clip: true
@@ -1243,6 +1306,15 @@ Panel {
       }
     }
 
+    // Pinned below the settings.
+    KeyHints {
+      id: settingsKeys
+      readonly property real topMargin: Style.space(10)
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      text: root.t("settings.keys")
+    }
   }
 
   // The kit's Dropdown assigns `value` itself when an option is picked, which
@@ -1317,11 +1389,14 @@ Panel {
     readonly property bool busy: !!req && !!root.svc && root.svc.isBusy(req.id)
     readonly property bool actionable: !!req && req.status === Seerr.REQUEST_PENDING && !!root.svc && !!root.svc && root.svc.canManage
 
-    hasCursor: root.cursor === rowIndex
+    // Only while the list itself has the keyboard (or under the mouse), so
+    // a focused filter or search field is not shown alongside a lit row.
+    hasCursor: root.cursor === rowIndex && (root.listFocused || rowMouse.containsMouse)
     foreground: root.foreground
     implicitHeight: Math.max(root.cfg.showPosters ? Style.space(54) : 0, rowContent.implicitHeight) + Style.space(10)
 
     MouseArea {
+      id: rowMouse
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
@@ -1619,9 +1694,12 @@ Panel {
     implicitWidth: chipLabel.implicitWidth + Style.space(16)
     implicitHeight: chipLabel.implicitHeight + Style.space(8)
     radius: height / 2
-    color: selected ? Util.alpha(root.accent, 0.2) : (chipMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
-    border.width: 1
-    border.color: selected ? root.accent : Util.alpha(root.foreground, 0.3)
+    color: selected ? Util.alpha(root.accent, 0.2) : (chipMouse.containsMouse || activeFocus ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
+    border.width: activeFocus ? 2 : 1
+    border.color: selected || activeFocus ? root.accent : Util.alpha(root.foreground, 0.3)
+    // Space ticks it; Enter is left to the form (approve).
+    activeFocusOnTab: true
+    Keys.onSpacePressed: chip.activated()
     PlainText {
       id: chipLabel
       anchors.centerIn: parent
@@ -1686,9 +1764,15 @@ Panel {
     implicitHeight: Style.spacing.controlHeight
     radius: Style.cornerRadius
     opacity: enabled ? (busy ? 0.5 : 1) : 0.4
-    color: abMouse.containsMouse && enabled && !busy ? Util.alpha(tone, 0.18) : (primary ? Util.alpha(tone, 0.1) : "transparent")
-    border.width: 1
-    border.color: Util.alpha(tone, primary || danger ? 0.7 : 0.35)
+    color: (abMouse.containsMouse || activeFocus) && enabled && !busy ? Util.alpha(tone, 0.18) : (primary ? Util.alpha(tone, 0.1) : "transparent")
+    border.width: activeFocus ? 2 : 1
+    border.color: activeFocus ? tone : Util.alpha(tone, primary || danger ? 0.7 : 0.35)
+    activeFocusOnTab: true
+    Keys.onPressed: function(event) {
+      if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Space) return
+      if (ab.enabled && !ab.busy) ab.activated(event.modifiers)
+      event.accepted = true
+    }
     Row {
       id: abRow
       anchors.centerIn: parent

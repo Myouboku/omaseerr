@@ -11,6 +11,7 @@
   "action.save": "Enregistrer",
 
   "approve.title": "Approuver la demande",
+  "approve.keys": "Tab suivant · Espace cocher · Entrée approuver · Maj+Entrée par défaut · Échap retour",
   "approve.loading": "Chargement des serveurs…",
   "approve.noServers": "Aucun serveur Radarr ou Sonarr correspondant n’est configuré dans Seerr.",
   "approve.radarr": "Serveur Radarr",
@@ -48,8 +49,8 @@
   "detail.rootFolder": "Dossier racine",
   "detail.runtime": "%1 min",
   "detail.seasonCount": { "one": "%1 saison", "other": "%1 saisons" },
-  "detail.keysDone": "x supprimer · o ouvrir dans Seerr · Échap retour",
-  "detail.keys": "a approuver · A approuver par défaut · d refuser · x supprimer · o ouvrir · Échap retour",
+  "detail.keysDone": "↑↓ parcourir · x supprimer · o ouvrir dans Seerr · Échap retour",
+  "detail.keys": "↑↓ parcourir · a approuver · A approuver par défaut · d refuser · x supprimer · o ouvrir · Échap retour",
 
   "error.notConfigured": "Seerr n’est pas configuré.",
   "error.timeout": "Seerr a mis trop de temps à répondre.",
@@ -106,6 +107,7 @@
   "notify.failed": "Échec de la demande : %1",
 
   "settings.title": "Réglages",
+  "settings.keys": "Tab suivant · Maj+Tab précédent · Espace activer · Entrée enregistrer · Échap retour",
   "settings.connection": "Connexion",
   "settings.url": "URL de Seerr (http ou https)",
   "settings.urlInvalid": "Saisis une adresse http:// ou https://.",

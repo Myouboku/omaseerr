@@ -11,6 +11,7 @@
   "action.save": "Save",
 
   "approve.title": "Approve request",
+  "approve.keys": "Tab next · Space tick · Enter approve · Shift+Enter with defaults · Esc back",
   "approve.loading": "Loading servers…",
   "approve.noServers": "No matching Radarr or Sonarr server is configured in Seerr.",
   "approve.radarr": "Radarr server",
@@ -48,8 +49,8 @@
   "detail.rootFolder": "Root folder",
   "detail.runtime": "%1 min",
   "detail.seasonCount": { "one": "%1 season", "other": "%1 seasons" },
-  "detail.keysDone": "x delete · o open in Seerr · Esc back",
-  "detail.keys": "a approve · A approve with defaults · d decline · x delete · o open · Esc back",
+  "detail.keysDone": "↑↓ browse · x delete · o open in Seerr · Esc back",
+  "detail.keys": "↑↓ browse · a approve · A approve with defaults · d decline · x delete · o open · Esc back",
 
   "error.notConfigured": "Seerr is not configured.",
   "error.timeout": "Seerr took too long to answer.",
@@ -106,6 +107,7 @@
   "notify.failed": "Request failed: %1",
 
   "settings.title": "Settings",
+  "settings.keys": "Tab next · Shift+Tab previous · Space toggle · Enter save · Esc back",
   "settings.connection": "Connection",
   "settings.url": "Seerr URL (http or https)",
   "settings.urlInvalid": "Enter an http:// or https:// address.",

@@ -67,6 +67,11 @@ The scanner warning "Module path … is outside of the config folder" is normal.
   (`defaults` and `schema`), `DEFAULTS` and `normalizeSettings` in
   `model/Seerr.js`, the settings page in `Panel.qml`, and the table in
   `README.md`.
+- **Keyboard first.** Every interactive control is reachable with Tab and
+  shows its focus (`ActionButton` and `Chip` handle it; kit controls do it
+  themselves); pages scroll to the focused control (`revealFocus`). Escape
+  leaves a control before leaving the page (list, approval form). Each page
+  pins a `KeyHints` line listing its keys: update it with any new shortcut.
 - **Pure logic goes in `model/Seerr.js`** with a test in `tests/run.js`; QML
   stays thin.
 
