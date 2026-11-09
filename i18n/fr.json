@@ -144,8 +144,6 @@
   "settings.display": "Affichage",
   "settings.showPosters": "Afficher les affiches",
   "settings.showPostersHelp": "Chargées depuis TMDB (image.tmdb.org)",
-  "settings.showBadge": "Nombre en attente sur l’icône",
-  "settings.badgeWhenEmpty": "Afficher le nombre même à zéro",
   "settings.confirmDecline": "Confirmer avant de refuser",
 
   "sort.added": "Demande",

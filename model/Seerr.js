@@ -547,8 +547,6 @@ var DEFAULTS = {
   defaultSortDirection: "desc",
   pageSize: 20,
   showPosters: true,
-  showBadge: true,
-  badgeWhenEmpty: false,
   confirmDecline: true
 }
 
@@ -571,8 +569,6 @@ function normalizeSettings(raw) {
     defaultSortDirection: oneOf(s.defaultSortDirection, DIRECTIONS, DEFAULTS.defaultSortDirection),
     pageSize: clampInt(s.pageSize, DEFAULTS.pageSize, 5, 100),
     showPosters: s.showPosters === undefined ? DEFAULTS.showPosters : s.showPosters === true,
-    showBadge: s.showBadge === undefined ? DEFAULTS.showBadge : s.showBadge === true,
-    badgeWhenEmpty: s.badgeWhenEmpty === true,
     confirmDecline: s.confirmDecline === undefined ? DEFAULTS.confirmDecline : s.confirmDecline === true
   }
 }

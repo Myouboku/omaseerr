@@ -4,7 +4,7 @@
 
 ![OmaSeerr panel](preview.png)
 
-- **Bar icon** with the number of pending requests (red `!` when Seerr is unreachable).
+- **Bar icon** in the accent color while requests are pending (red when Seerr is unreachable); the tooltip gives the count.
 - **Panel**: requests with posters, filter by status and media type, sort by request or update date, search by title or user.
 - **Details**: poster, synopsis, genres, requested seasons, who asked and when, who handled it.
 - **Approve with options**: choose the Radarr/Sonarr server, quality profile, root folder, language profile, tags and seasons, like Seerr's own approval dialog (anime defaults included). **Shift+click** (or `A`) approves straight away with Seerr's defaults.
@@ -98,8 +98,6 @@ All of them are in the panel (gear icon). They are stored in the widget's entry 
 | `defaultSortDirection` | `desc` | `desc`, `asc` |
 | `pageSize` | `20` | requests per page (5–100) |
 | `showPosters` | `true` | posters in the panel (loaded from image.tmdb.org) |
-| `showBadge` | `true` | pending count on the bar icon |
-| `badgeWhenEmpty` | `false` | show the count when it is zero |
 | `confirmDecline` | `true` | ask before declining |
 
 ## IPC

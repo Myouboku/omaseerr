@@ -72,7 +72,6 @@ Panel {
   readonly property var cfg: svc ? svc.settings : Seerr.normalizeSettings({})
   readonly property bool connected: !!svc && svc.connection === "connected"
   readonly property int pending: svc ? svc.counts.pending : 0
-  readonly property bool problem: !svc || svc.connection === "error" || svc.connection === "unconfigured"
 
   // ---------------------------------------------------------------- glyphs
 
@@ -470,39 +469,22 @@ Panel {
       if (root.svc.connection === "connecting") return root.t("bar.connecting")
       return root.svc.lastError || root.t("bar.error")
     }
+    // Accent while requests wait, red when Seerr is unreachable, dimmed
+    // while not set up or connecting.
     iconComponent: Component {
-      Item {
-        Text {
-          anchors.centerIn: parent
-          textFormat: Text.PlainText
-          text: root.gSeerr
-          color: root.problem ? Qt.darker(root.barForeground, 1.55) : root.barForeground
-          font.family: root.fontFamily
-          font.pixelSize: button.iconSize
+      Text {
+        textFormat: Text.PlainText
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+        text: root.gSeerr
+        color: {
+          if (!root.svc || root.svc.connection === "unconfigured" || root.svc.connection === "connecting")
+            return Qt.darker(root.barForeground, 1.55)
+          if (root.svc.connection === "error") return root.urgent
+          return root.pending > 0 ? root.accent : root.barForeground
         }
-        Rectangle {
-          readonly property bool shown: !!root.svc && root.cfg.showBadge
-            && ((root.connected && (root.pending > 0 || root.cfg.badgeWhenEmpty)) || (root.svc.connection === "error"))
-          visible: shown
-          anchors.right: parent.right
-          anchors.top: parent.top
-          anchors.rightMargin: -Math.round(width * 0.45)
-          anchors.topMargin: -Math.round(height * 0.3)
-          height: Math.max(Style.space(11), Math.round(button.iconSize * 0.8))
-          width: Math.max(height, badgeText.implicitWidth + Style.space(5))
-          radius: height / 2
-          color: root.svc && root.svc.connection === "error" ? root.urgent : root.accent
-          Text {
-            id: badgeText
-            anchors.centerIn: parent
-            textFormat: Text.PlainText
-            text: root.svc && root.svc.connection === "error" ? "!" : (root.pending > 99 ? "99+" : String(root.pending))
-            color: Commons.Color.background
-            font.family: root.fontFamily
-            font.pixelSize: Math.round(parent.height * 0.78)
-            font.bold: true
-          }
-        }
+        font.family: root.fontFamily
+        font.pixelSize: button.iconSize
       }
     }
     onPressed: function(buttonCode) {
@@ -1265,8 +1247,6 @@ Panel {
         PanelSeparator { foreground: root.foreground }
         PanelSectionHeader { text: root.t("settings.display"); foreground: root.foreground; fontFamily: root.fontFamily }
         SettingToggle { key: "showPosters"; label: root.t("settings.showPosters"); description: root.t("settings.showPostersHelp") }
-        SettingToggle { key: "showBadge"; label: root.t("settings.showBadge") }
-        SettingToggle { key: "badgeWhenEmpty"; label: root.t("settings.badgeWhenEmpty") }
         SettingToggle { key: "confirmDecline"; label: root.t("settings.confirmDecline") }
       }
     }

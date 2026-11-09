@@ -32,8 +32,6 @@
       "defaultSortDirection": "desc",
       "pageSize": 20,
       "showPosters": true,
-      "showBadge": true,
-      "badgeWhenEmpty": false,
       "confirmDecline": true
     },
     "schema": [
@@ -58,8 +56,6 @@
       { "key": "pageSize", "type": "integer", "label": "Requests per page", "min": 5, "max": 100, "step": 5, "defaultValue": 20 },
       { "key": "showPosters", "type": "boolean", "label": "Show posters", "defaultValue": true,
         "description": "Loaded from image.tmdb.org." },
-      { "key": "showBadge", "type": "boolean", "label": "Pending count on the bar icon", "defaultValue": true },
-      { "key": "badgeWhenEmpty", "type": "boolean", "label": "Show the count when it is zero", "defaultValue": false },
       { "key": "confirmDecline", "type": "boolean", "label": "Confirm before declining", "defaultValue": true }
     ]
   }

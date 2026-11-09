@@ -144,8 +144,6 @@
   "settings.display": "Display",
   "settings.showPosters": "Show posters",
   "settings.showPostersHelp": "Loaded from TMDB (image.tmdb.org)",
-  "settings.showBadge": "Pending count on the bar icon",
-  "settings.badgeWhenEmpty": "Show the count when it is zero",
   "settings.confirmDecline": "Confirm before declining",
 
   "sort.added": "Requested",
