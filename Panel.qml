@@ -598,31 +598,31 @@ Panel {
         width: parent.width
         spacing: Style.space(6)
         visible: root.connected
-        Dropdown {
+        SyncedDropdown {
           Layout.fillWidth: true
           Layout.preferredWidth: 1
           showLabel: false
-          value: root.svc ? root.svc.view.filter : "pending"
+          current: root.svc ? root.svc.view.filter : "pending"
           options: Seerr.FILTERS.map(function(f) { return { value: f, label: root.t("filter." + f) } })
           foreground: root.foreground
           fontFamily: root.fontFamily
           onChanged: function(v) { root.cursor = 0; root.svc.setView({ filter: v }) }
         }
-        Dropdown {
+        SyncedDropdown {
           Layout.fillWidth: true
           Layout.preferredWidth: 1
           showLabel: false
-          value: root.svc ? root.svc.view.mediaType : "all"
+          current: root.svc ? root.svc.view.mediaType : "all"
           options: Seerr.MEDIA_TYPES.map(function(f) { return { value: f, label: root.t("mediaType." + f) } })
           foreground: root.foreground
           fontFamily: root.fontFamily
           onChanged: function(v) { root.cursor = 0; root.svc.setView({ mediaType: v }) }
         }
-        Dropdown {
+        SyncedDropdown {
           Layout.fillWidth: true
           Layout.preferredWidth: 1
           showLabel: false
-          value: root.svc ? root.svc.view.sort : "added"
+          current: root.svc ? root.svc.view.sort : "added"
           options: Seerr.SORTS.map(function(f) { return { value: f, label: root.t("sort." + f) } })
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -955,31 +955,31 @@ Panel {
           color: root.urgent
         }
 
-        Dropdown {
+        SyncedDropdown {
           width: parent.width
           visible: root.formServers.length > 0 && !!root.form
           label: approveRoot.req && approveRoot.req.type === "tv" ? root.t("approve.sonarr") : root.t("approve.radarr")
-          value: root.form ? String(root.form.serverId) : ""
+          current: root.form ? String(root.form.serverId) : ""
           options: root.formServers.map(function(s) { return { value: String(s.id), label: s.name + (s.isDefault ? " ★" : "") } })
           foreground: root.foreground
           fontFamily: root.fontFamily
           onChanged: function(v) { root.selectServer(parseInt(v, 10)) }
         }
-        Dropdown {
+        SyncedDropdown {
           width: parent.width
           visible: !!root.form && !!root.formDetails
           label: root.t("approve.profile")
-          value: root.form ? String(root.form.profileId) : ""
+          current: root.form ? String(root.form.profileId) : ""
           options: root.formDetails ? root.formDetails.profiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
           foreground: root.foreground
           fontFamily: root.fontFamily
           onChanged: function(v) { root.setForm({ profileId: parseInt(v, 10) }) }
         }
-        Dropdown {
+        SyncedDropdown {
           width: parent.width
           visible: !!root.form && !!root.formDetails
           label: root.t("approve.rootFolder")
-          value: root.form ? root.form.rootFolder : ""
+          current: root.form ? root.form.rootFolder : ""
           options: root.formDetails ? root.formDetails.rootFolders.map(function(f) {
             var free = f.freeSpace >= 0 ? "  (" + root.t("approve.free").arg(Seerr.formatBytes(f.freeSpace, Commons.I18n.formatNumber)) + ")" : ""
             return { value: f.path, label: f.path + free }
@@ -988,11 +988,11 @@ Panel {
           fontFamily: root.fontFamily
           onChanged: function(v) { root.setForm({ rootFolder: v }) }
         }
-        Dropdown {
+        SyncedDropdown {
           width: parent.width
           visible: !!root.form && !!root.formDetails && !!root.formDetails.languageProfiles && root.formDetails.languageProfiles.length > 0
           label: root.t("approve.languageProfile")
-          value: root.form ? String(root.form.languageProfileId) : ""
+          current: root.form ? String(root.form.languageProfileId) : ""
           options: root.formDetails && root.formDetails.languageProfiles ? root.formDetails.languageProfiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -1271,6 +1271,22 @@ Panel {
 
   }
 
+  // The kit's Dropdown assigns `value` itself when an option is picked, which
+  // cuts a `value:` binding: the dropdown would then go on showing that pick
+  // after the state changes elsewhere (f/t keys, a server change resetting
+  // the profile, IPC `set`). Bind `current` instead; it is pushed to `value`
+  // on every change, and again after a pick, in case the pick was refused.
+  component SyncedDropdown: Dropdown {
+    id: synced
+    property string current: ""
+    value: current
+    onCurrentChanged: value = current
+    Connections {
+      target: synced
+      function onChanged(v) { Qt.callLater(function() { synced.value = synced.current }) }
+    }
+  }
+
   component SettingToggle: Toggle {
     property string key: ""
     width: parent ? parent.width : 0
@@ -1284,11 +1300,11 @@ Panel {
     }
   }
 
-  component SettingChoice: Dropdown {
+  component SettingChoice: SyncedDropdown {
     property string key: ""
     property bool numeric: false
     width: parent ? parent.width : 0
-    value: String(root.cfg[key])
+    current: String(root.cfg[key])
     foreground: root.foreground
     fontFamily: root.fontFamily
     onChanged: function(v) {
