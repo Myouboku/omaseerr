@@ -14,7 +14,7 @@ Item {
   id: approveRoot
   // The panel: state, actions, service, settings, translations and theme.
   required property var ctx
-  readonly property var req: ctx.formReq
+  readonly property var req: ctx.approval.req
   readonly property bool busy: !!req && !!ctx.svc && ctx.svc.isBusy(req.id)
   implicitHeight: header0.implicitHeight + Style.space(10) + formColumn.implicitHeight
                   + approveKeys.topMargin + approveKeys.implicitHeight
@@ -26,7 +26,7 @@ Item {
     showBack: true
     backTooltip: ctx.t("action.back") + "  (Esc)"
     foreground: ctx.foreground; dim: ctx.dim; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-    onBack: ctx.back()
+    onBack: ctx.nav.back()
   }
 
   Flickable {
@@ -57,7 +57,7 @@ Item {
           visible: ctx.cfg.showPosters
           Layout.preferredWidth: Style.space(36)
           Layout.preferredHeight: Style.space(54)
-          url: ctx.cfg.showPosters ? Seerr.posterUrl(ctx.formMedia ? ctx.formMedia.posterPath : "", "w92") : ""
+          url: ctx.cfg.showPosters ? Seerr.posterUrl(ctx.approval.media ? ctx.approval.media.posterPath : "", "w92") : ""
           type: approveRoot.req ? approveRoot.req.type : "movie"
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
@@ -92,79 +92,79 @@ Item {
 
       Hint {
         width: parent.width
-        visible: ctx.formLoading
+        visible: ctx.approval.loading
         text: ctx.t("approve.loading")
         color: ctx.dim
         font.family: ctx.fontFamily
       }
       Hint {
         width: parent.width
-        visible: ctx.formError !== ""
-        text: ctx.formError
+        visible: ctx.approval.error !== ""
+        text: ctx.approval.error
         color: ctx.urgent
         font.family: ctx.fontFamily
       }
 
       SyncedDropdown {
         width: parent.width
-        visible: ctx.formServers.length > 0 && !!ctx.form
+        visible: ctx.approval.servers.length > 0 && !!ctx.approval.form
         label: approveRoot.req && approveRoot.req.type === "tv" ? ctx.t("approve.sonarr") : ctx.t("approve.radarr")
-        current: ctx.form ? String(ctx.form.serverId) : ""
-        options: ctx.formServers.map(function(s) { return { value: String(s.id), label: s.isDefault ? ctx.t("approve.defaultServer").arg(s.name) : s.name } })
+        current: ctx.approval.form ? String(ctx.approval.form.serverId) : ""
+        options: ctx.approval.servers.map(function(s) { return { value: String(s.id), label: s.isDefault ? ctx.t("approve.defaultServer").arg(s.name) : s.name } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.selectServer(parseInt(v, 10)) }
+        onChanged: function(v) { ctx.approval.selectServer(parseInt(v, 10)) }
       }
       SyncedDropdown {
         width: parent.width
-        visible: !!ctx.form && !!ctx.formDetails
+        visible: !!ctx.approval.form && !!ctx.approval.details
         label: ctx.t("approve.profile")
-        current: ctx.form ? String(ctx.form.profileId) : ""
-        options: ctx.formDetails ? ctx.formDetails.profiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
+        current: ctx.approval.form ? String(ctx.approval.form.profileId) : ""
+        options: ctx.approval.details ? ctx.approval.details.profiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.setForm({ profileId: parseInt(v, 10) }) }
+        onChanged: function(v) { ctx.approval.set({ profileId: parseInt(v, 10) }) }
       }
       SyncedDropdown {
         width: parent.width
-        visible: !!ctx.form && !!ctx.formDetails
+        visible: !!ctx.approval.form && !!ctx.approval.details
         label: ctx.t("approve.rootFolder")
-        current: ctx.form ? ctx.form.rootFolder : ""
-        options: ctx.formDetails ? ctx.formDetails.rootFolders.map(function(f) {
+        current: ctx.approval.form ? ctx.approval.form.rootFolder : ""
+        options: ctx.approval.details ? ctx.approval.details.rootFolders.map(function(f) {
           var free = f.freeSpace >= 0 ? "  (" + ctx.t("approve.free").arg(Seerr.formatBytes(f.freeSpace, Commons.I18n.formatNumber)) + ")" : ""
           return { value: f.path, label: f.path + free }
         }) : []
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.setForm({ rootFolder: v }) }
+        onChanged: function(v) { ctx.approval.set({ rootFolder: v }) }
       }
       SyncedDropdown {
         width: parent.width
-        visible: !!ctx.form && !!ctx.formDetails && !!ctx.formDetails.languageProfiles && ctx.formDetails.languageProfiles.length > 0
+        visible: !!ctx.approval.form && !!ctx.approval.details && !!ctx.approval.details.languageProfiles && ctx.approval.details.languageProfiles.length > 0
         label: ctx.t("approve.languageProfile")
-        current: ctx.form ? String(ctx.form.languageProfileId) : ""
-        options: ctx.formDetails && ctx.formDetails.languageProfiles ? ctx.formDetails.languageProfiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
+        current: ctx.approval.form ? String(ctx.approval.form.languageProfileId) : ""
+        options: ctx.approval.details && ctx.approval.details.languageProfiles ? ctx.approval.details.languageProfiles.map(function(p) { return { value: String(p.id), label: p.name } }) : []
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.setForm({ languageProfileId: parseInt(v, 10) }) }
+        onChanged: function(v) { ctx.approval.set({ languageProfileId: parseInt(v, 10) }) }
       }
 
       Column {
         width: parent.width
         spacing: Style.space(6)
-        visible: !!ctx.form && !!ctx.formDetails && ctx.formDetails.tags.length > 0
+        visible: !!ctx.approval.form && !!ctx.approval.details && ctx.approval.details.tags.length > 0
         FieldLabel { text: ctx.t("approve.tags"); color: ctx.dim; font.family: ctx.fontFamily }
         Flow {
           width: parent.width
           spacing: Style.space(5)
           Repeater {
-            model: ctx.formDetails ? ctx.formDetails.tags : []
+            model: ctx.approval.details ? ctx.approval.details.tags : []
             Chip {
               required property var modelData
               label: modelData.name
-              selected: !!ctx.form && ctx.form.tags.indexOf(modelData.id) !== -1
+              selected: !!ctx.approval.form && ctx.approval.form.tags.indexOf(modelData.id) !== -1
               foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
-              onActivated: ctx.setForm({ tags: Seerr.toggleInList(ctx.form.tags, modelData.id) })
+              onActivated: ctx.approval.set({ tags: Seerr.toggleInList(ctx.approval.form.tags, modelData.id) })
             }
           }
         }
@@ -173,14 +173,14 @@ Item {
       Column {
         width: parent.width
         spacing: Style.space(6)
-        visible: !!ctx.form && !!approveRoot.req && approveRoot.req.type === "tv"
+        visible: !!ctx.approval.form && !!approveRoot.req && approveRoot.req.type === "tv"
         FieldLabel { text: ctx.t("approve.seasons"); color: ctx.dim; font.family: ctx.fontFamily }
         Flow {
           width: parent.width
           spacing: Style.space(5)
           Repeater {
             model: {
-              var m = ctx.formMedia
+              var m = ctx.approval.media
               var list = m && m.seasons.length ? m.seasons.filter(function(s) { return s.seasonNumber > 0 }) : []
               if (list.length === 0 && approveRoot.req) list = approveRoot.req.seasons.map(function(n) { return { seasonNumber: n, episodeCount: 0 } })
               return list
@@ -189,9 +189,9 @@ Item {
               required property var modelData
               label: ctx.t("approve.season").arg(modelData.seasonNumber)
               tooltip: modelData.episodeCount ? ctx.tn("approve.episodes", modelData.episodeCount) : ""
-              selected: !!ctx.form && ctx.form.seasons.indexOf(modelData.seasonNumber) !== -1
+              selected: !!ctx.approval.form && ctx.approval.form.seasons.indexOf(modelData.seasonNumber) !== -1
               foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
-              onActivated: ctx.setForm({ seasons: Seerr.toggleInList(ctx.form.seasons, modelData.seasonNumber) })
+              onActivated: ctx.approval.set({ seasons: Seerr.toggleInList(ctx.approval.form.seasons, modelData.seasonNumber) })
             }
           }
         }
@@ -205,23 +205,23 @@ Item {
           glyph: Glyphs.check
           primary: true
           busy: approveRoot.busy
-          enabled: !!ctx.form && !ctx.formLoading && Seerr.formProblem(approveRoot.req, ctx.form) === ""
+          enabled: !!ctx.approval.form && !ctx.approval.loading && Seerr.formProblem(approveRoot.req, ctx.approval.form) === ""
           tooltip: ctx.t("hint.shiftApprove")
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: function(mods) { ctx.submitForm((mods & Qt.ShiftModifier) !== 0) }
+          onActivated: function(mods) { ctx.approval.submit((mods & Qt.ShiftModifier) !== 0) }
         }
         ActionButton {
           label: ctx.t("approve.quick")
           glyph: Glyphs.bolt
           busy: approveRoot.busy
-          visible: ctx.formError !== "" || !ctx.form
+          visible: ctx.approval.error !== "" || !ctx.approval.form
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.submitForm(true)
+          onActivated: ctx.approval.submit(true)
         }
         ActionButton {
           label: ctx.t("action.cancel")
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.back()
+          onActivated: ctx.nav.back()
         }
       }
     }

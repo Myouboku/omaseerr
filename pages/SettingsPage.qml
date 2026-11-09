@@ -29,7 +29,7 @@ Item {
     showBack: true
     backTooltip: ctx.t("action.back") + "  (Esc)"
     foreground: ctx.foreground; dim: ctx.dim; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-    onBack: ctx.back()
+    onBack: ctx.nav.back()
   }
 
   Flickable {
@@ -76,10 +76,10 @@ Item {
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
           onActivated: {
             var n = Seerr.normalizeBaseUrl(urlField.text)
-            if (urlField.text.trim() === "") { ctx.saveSetting({ url: "" }); return }
-            if (!n.ok) { ctx.flash(ctx.t("settings.urlInvalid"), true); return }
+            if (urlField.text.trim() === "") { ctx.nav.saveSetting({ url: "" }); return }
+            if (!n.ok) { ctx.nav.flash(ctx.t("settings.urlInvalid"), true); return }
             urlField.text = n.url
-            ctx.saveSetting({ url: n.url })
+            ctx.nav.saveSetting({ url: n.url })
           }
         }
       }
@@ -115,7 +115,7 @@ Item {
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
           onActivated: {
             if (ctx.svc && ctx.svc.storeKey(keyField.text)) keyField.text = ""
-            else ctx.flash(ctx.svc ? ctx.svc.keyMessage : "", true)
+            else ctx.nav.flash(ctx.svc ? ctx.svc.keyMessage : "", true)
           }
         }
         // Rarely used: kept plain rather than alarming red.
@@ -231,13 +231,13 @@ Item {
     values: settingsRoot.ctx.cfg
     foreground: settingsRoot.ctx.foreground
     fontFamily: settingsRoot.ctx.fontFamily
-    onSave: function(patch) { settingsRoot.ctx.saveSetting(patch) }
+    onSave: function(patch) { settingsRoot.ctx.nav.saveSetting(patch) }
   }
 
   component BoundChoice: SettingChoice {
     values: settingsRoot.ctx.cfg
     foreground: settingsRoot.ctx.foreground
     fontFamily: settingsRoot.ctx.fontFamily
-    onSave: function(patch) { settingsRoot.ctx.saveSetting(patch) }
+    onSave: function(patch) { settingsRoot.ctx.nav.saveSetting(patch) }
   }
 }

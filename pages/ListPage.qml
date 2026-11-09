@@ -26,7 +26,7 @@ Item {
     var parts = [(r.type === "tv" ? Glyphs.tv + " " + ctx.t("type.tv") : Glyphs.movie + " " + ctx.t("type.movie"))]
     if (r.type === "tv" && r.seasons.length) parts.push(ctx.t("detail.seasonsShort").arg(Seerr.seasonsLabel(r.seasons)))
     if (r.requestedBy) parts.push(r.requestedBy.name)
-    parts.push(ctx.age(ctx.svc && ctx.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
+    parts.push(ctx.nav.age(ctx.svc && ctx.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
     return parts.join(" · ")
   }
 
@@ -51,7 +51,7 @@ Item {
       // The pending count takes you to the pending requests.
       subtitleClickable: ctx.connected && ctx.pending > 0 && !!ctx.svc && ctx.svc.view.filter !== "pending"
       subtitleTooltip: ctx.t("filter.pending") + "  (f)"
-      onSubtitleClicked: { ctx.cursor = 0; ctx.svc.setView({ filter: "pending" }) }
+      onSubtitleClicked: { ctx.nav.cursor = 0; ctx.svc.setView({ filter: "pending" }) }
       showBack: false
       foreground: ctx.foreground; dim: ctx.dim; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
       IconButton {
@@ -69,7 +69,7 @@ Item {
       IconButton {
         glyph: Glyphs.cog; tooltip: ctx.t("settings.title") + "  (s)"
         foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
-        onActivated: ctx.go("settings")
+        onActivated: ctx.nav.go("settings")
       }
     }
 
@@ -86,7 +86,7 @@ Item {
         options: Seerr.FILTERS.map(function(f) { return { value: f, label: ctx.t("filter." + f) } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.cursor = 0; ctx.svc.setView({ filter: v }) }
+        onChanged: function(v) { ctx.nav.cursor = 0; ctx.svc.setView({ filter: v }) }
       }
       SyncedDropdown {
         Layout.fillWidth: true
@@ -96,7 +96,7 @@ Item {
         options: Seerr.MEDIA_TYPES.map(function(f) { return { value: f, label: ctx.t("mediaType." + f) } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
-        onChanged: function(v) { ctx.cursor = 0; ctx.svc.setView({ mediaType: v }) }
+        onChanged: function(v) { ctx.nav.cursor = 0; ctx.svc.setView({ mediaType: v }) }
       }
       SyncedDropdown {
         Layout.fillWidth: true
@@ -117,7 +117,7 @@ Item {
         fontFamily: ctx.fontFamily
         onChanged: function(v) {
           var parts = v.split(":")
-          ctx.cursor = 0
+          ctx.nav.cursor = 0
           ctx.svc.setView({ sort: parts[0], sortDirection: parts[1] })
         }
       }
@@ -131,7 +131,7 @@ Item {
       foreground: ctx.foreground
       font.family: ctx.fontFamily
       font.pixelSize: Style.font.body
-      onTextChanged: if (ctx.svc && text !== ctx.svc.view.search) { ctx.cursor = 0; ctx.svc.setView({ search: text }) }
+      onTextChanged: if (ctx.svc && text !== ctx.svc.view.search) { ctx.nav.cursor = 0; ctx.svc.setView({ search: text }) }
       // Enter hands the keyboard back to the list, keeping the search.
       onAccepted: if (ctx.content) ctx.content.forceActiveFocus()
       Connections {
@@ -144,7 +144,7 @@ Item {
     // Seerr stopped answering: what follows is from before.
     OfflineBanner {
       width: parent.width
-      visible: ctx.offline && ctx.visibleRows.length > 0
+      visible: ctx.offline && ctx.nav.visibleRows.length > 0
       title: ctx.svc && ctx.svc.lastOkAt > 0
         ? ctx.t("list.offlineSince").arg(new Date(ctx.svc.lastOkAt).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat))
         : ctx.t("list.offlineTitle")
@@ -180,7 +180,7 @@ Item {
       Behavior on opacity { NumberAnimation { duration: Style.duration(200) } }
       Repeater {
         id: rowRepeater
-        model: ctx.visibleRows
+        model: ctx.nav.visibleRows
         RequestRow {
           id: row
           required property var modelData
@@ -202,13 +202,13 @@ Item {
           busy: !!ctx.svc && ctx.svc.isBusy(req.id)
           approveTooltip: ctx.t("action.approve") + "  (a)\n" + ctx.t("hint.shiftApprove")
           declineTooltip: ctx.t("action.decline") + "  (d)"
-          selected: ctx.cursor === row.index
-          keyboardActive: ctx.listFocused
+          selected: ctx.nav.cursor === row.index
+          keyboardActive: ctx.nav.listFocused
           foreground: ctx.foreground; dim: ctx.dim; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onPointed: ctx.cursor = row.index
-          onOpened: ctx.openDetail(req)
-          onApproveClicked: function(mods) { ctx.approve(req, (mods & Qt.ShiftModifier) !== 0) }
-          onDeclineClicked: ctx.decline(req)
+          onPointed: ctx.nav.cursor = row.index
+          onOpened: ctx.nav.openDetail(req)
+          onApproveClicked: function(mods) { ctx.nav.approve(req, (mods & Qt.ShiftModifier) !== 0) }
+          onDeclineClicked: ctx.nav.decline(req)
         }
       }
     }
@@ -217,7 +217,7 @@ Item {
     Column {
       id: footer
       readonly property real gap: Style.space(6)
-      y: ctx.visibleRows.length > 0 ? rowCol.implicitHeight + gap
+      y: ctx.nav.visibleRows.length > 0 ? rowCol.implicitHeight + gap
                                      : Math.max(0, Math.round((flick.height - implicitHeight) / 2))
       width: flick.width
       spacing: Style.space(6)
@@ -225,7 +225,7 @@ Item {
       // Unreachable with nothing to show: say so here, with a way out.
       PlainText {
         anchors.horizontalCenter: parent.horizontalCenter
-        visible: ctx.offline && ctx.visibleRows.length === 0
+        visible: ctx.offline && ctx.nav.visibleRows.length === 0
         text: Glyphs.warning
         color: ctx.retrying ? ctx.dim : ctx.urgent
         font.family: ctx.fontFamily
@@ -234,7 +234,7 @@ Item {
       PlainText {
         width: parent.width
         horizontalAlignment: Text.AlignHCenter
-        visible: ctx.offline && ctx.visibleRows.length === 0
+        visible: ctx.offline && ctx.nav.visibleRows.length === 0
         text: ctx.t("list.offlineTitle")
         color: ctx.foreground
         font.family: ctx.fontFamily
@@ -246,12 +246,12 @@ Item {
         visible: text !== ""
         text: {
           if (!ctx.svc) return ""
-          if (ctx.offline) return ctx.visibleRows.length === 0 ? ctx.svc.lastError : ""
+          if (ctx.offline) return ctx.nav.visibleRows.length === 0 ? ctx.svc.lastError : ""
           if (ctx.svc.connection === "unconfigured") return ctx.t("list.setupHint")
           if (ctx.svc.connection !== "connected") return ""
           if (ctx.svc.listError) return ctx.svc.listError
           if (ctx.svc.listLoading) return ctx.t("list.loading")
-          if (ctx.visibleRows.length > 0) return ""
+          if (ctx.nav.visibleRows.length > 0) return ""
           var v = ctx.svc.view
           if (v.search) return ctx.t("list.noMatch").arg(v.search)
           if (v.filter === "pending" && v.mediaType === "all") return ctx.t("list.nothingPending")
@@ -264,7 +264,7 @@ Item {
       Hint {
         width: parent.width
         horizontalAlignment: Text.AlignHCenter
-        visible: ctx.connected && !!ctx.svc && ctx.svc.view.search !== "" && ctx.visibleRows.length === 0 && !ctx.svc.listLoading
+        visible: ctx.connected && !!ctx.svc && ctx.svc.view.search !== "" && ctx.nav.visibleRows.length === 0 && !ctx.svc.listLoading
         text: ctx.t("list.clearSearch")
         color: ctx.dim
         font.family: ctx.fontFamily
@@ -273,7 +273,7 @@ Item {
       Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: Style.space(6)
-        visible: (ctx.offline && ctx.visibleRows.length === 0) || (!!ctx.svc && ctx.svc.connection === "unconfigured")
+        visible: (ctx.offline && ctx.nav.visibleRows.length === 0) || (!!ctx.svc && ctx.svc.connection === "unconfigured")
         ActionButton {
           visible: ctx.offline
           label: ctx.t("action.retry")
@@ -287,7 +287,7 @@ Item {
           label: ctx.t("settings.title")
           glyph: Glyphs.cog
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.go("settings")
+          onActivated: ctx.nav.go("settings")
         }
       }
     }

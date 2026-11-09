@@ -14,7 +14,7 @@ Item {
   id: detailRoot
   // The panel: state, actions, service, settings, translations and theme.
   required property var ctx
-  readonly property var req: ctx.detailReq
+  readonly property var req: ctx.nav.detailReq
   readonly property var media: req && ctx.svc ? (ctx.svc.mediaRevision, ctx.svc.mediaFor(req)) : null
   readonly property string status: Seerr.statusKey(req)
   readonly property bool busy: !!req && !!ctx.svc && ctx.svc.isBusy(req.id)
@@ -28,7 +28,7 @@ Item {
     showBack: true
     backTooltip: ctx.t("action.back") + "  (Esc)"
     foreground: ctx.foreground; dim: ctx.dim; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-    onBack: ctx.back()
+    onBack: ctx.nav.back()
     IconButton {
       glyph: Glyphs.open; tooltip: ctx.t("action.openSeerr") + "  (o)"; enabled: !!detailRoot.req
       foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
@@ -123,7 +123,7 @@ Item {
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
         InfoPair {
-          label: ctx.t("detail.requested"); value: detailRoot.req ? ctx.longDate(detailRoot.req.createdAt) : ""
+          label: ctx.t("detail.requested"); value: detailRoot.req ? ctx.nav.longDate(detailRoot.req.createdAt) : ""
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
         InfoPair {
@@ -135,7 +135,7 @@ Item {
         InfoPair {
           visible: !!detailRoot.req && detailRoot.req.updatedAt > detailRoot.req.createdAt + 1000
           label: ctx.t("detail.updated")
-          value: detailRoot.req ? ctx.longDate(detailRoot.req.updatedAt) : ""
+          value: detailRoot.req ? ctx.nav.longDate(detailRoot.req.updatedAt) : ""
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
         InfoPair {
@@ -178,7 +178,7 @@ Item {
           busy: detailRoot.busy
           tooltip: ctx.t("hint.shiftApprove")
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: function(mods) { ctx.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
+          onActivated: function(mods) { ctx.nav.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
         }
         ActionButton {
           visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
@@ -186,7 +186,7 @@ Item {
           glyph: Glyphs.close
           busy: detailRoot.busy
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.decline(detailRoot.req)
+          onActivated: ctx.nav.decline(detailRoot.req)
         }
         ActionButton {
           visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_FAILED && !!ctx.svc && ctx.svc.canManage
@@ -202,7 +202,7 @@ Item {
           danger: true
           busy: detailRoot.busy
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.remove(detailRoot.req)
+          onActivated: ctx.nav.remove(detailRoot.req)
         }
       }
     }
