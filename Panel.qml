@@ -569,6 +569,7 @@ Panel {
     property alias rowRepeater: rowRepeater
     property alias searchField: search
     implicitHeight: header.implicitHeight + Style.space(10) + Math.max(Style.space(60), flick.contentHeight)
+                    + (listKeys.visible ? listKeys.topMargin + listKeys.implicitHeight : 0)
 
     Column {
       id: header
@@ -661,7 +662,8 @@ Panel {
       anchors.topMargin: Style.space(10)
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.bottom: parent.bottom
+      anchors.bottom: listKeys.visible ? listKeys.top : parent.bottom
+      anchors.bottomMargin: listKeys.visible ? listKeys.topMargin : 0
       contentWidth: width
       contentHeight: rowCol.implicitHeight + footer.anchors.topMargin + footer.implicitHeight + Style.space(4)
       clip: true
@@ -716,12 +718,18 @@ Panel {
           glyph: root.gCog
           onActivated: root.go("settings")
         }
-        KeyHints {
-          width: parent.width
-          visible: root.connected && root.visibleRows.length > 0
-          text: root.t("list.keys")
-        }
       }
+    }
+
+    // Pinned below the list, so it shows however long the list is.
+    KeyHints {
+      id: listKeys
+      readonly property real topMargin: Style.space(8)
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      visible: root.connected && root.visibleRows.length > 0
+      text: root.t("list.keys")
     }
   }
 
@@ -732,6 +740,7 @@ Panel {
     readonly property string status: Seerr.statusKey(req)
     readonly property bool busy: !!req && !!root.svc && root.svc.isBusy(req.id)
     implicitHeight: header0.implicitHeight + Style.space(10) + detailColumn.implicitHeight
+                    + (detailKeys.visible ? detailKeys.topMargin + detailKeys.implicitHeight : 0)
 
     TopBar {
       id: header0
@@ -746,7 +755,8 @@ Panel {
       anchors.topMargin: Style.space(10)
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.bottom: parent.bottom
+      anchors.bottom: detailKeys.visible ? detailKeys.top : parent.bottom
+      anchors.bottomMargin: detailKeys.visible ? detailKeys.topMargin : 0
       contentWidth: width
       contentHeight: detailColumn.implicitHeight
       clip: true
@@ -886,11 +896,18 @@ Panel {
             onActivated: root.remove(detailRoot.req)
           }
         }
-        KeyHints {
-          width: parent.width
-          text: detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING ? root.t("detail.keys") : root.t("detail.keysDone")
-        }
       }
+    }
+
+    // Pinned below the details, so it shows even when they scroll.
+    KeyHints {
+      id: detailKeys
+      readonly property real topMargin: Style.space(10)
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      visible: !!detailRoot.req
+      text: detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING ? root.t("detail.keys") : root.t("detail.keysDone")
     }
   }
 
