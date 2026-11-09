@@ -29,6 +29,7 @@
 //   move {to: "first"|"last"}   to the list's first or last row/request
 //   openDetail, approve {quick}, decline, remove, retry, open, refresh,
 //   settings, focusSearch       on the current request / panel
+//   watch, trailer              the details' media server page, trailer
 //   cycle {key, values, backwards}  the list's next filter, type, sort…
 function keyAction(press) {
   var key = press.key || ""
@@ -70,6 +71,8 @@ function keyAction(press) {
     return press.status === Requests.REQUEST_FAILED ? { action: "retry" } : null
   }
   if (letter === "o" && !shift) return { action: "open" }
+  if (page === "detail" && letter === "w" && !shift) return { action: "watch" }
+  if (page === "detail" && letter === "v" && !shift) return { action: "trailer" }
   if (page === "list") {
     if (text === "/") return { action: "focusSearch" }
     if (letter === "f") return { action: "cycle", key: "filter", values: Requests.FILTERS, backwards: shift }

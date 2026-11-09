@@ -6,7 +6,7 @@
 
 - **Bar icon** in the accent color while requests are pending, a red warning sign when Seerr is unreachable; the tooltip gives the count. Right-click refreshes, middle-click opens Seerr.
 - **Panel**: requests with posters, filter by status and media type, sort by request or update date, search by title or user.
-- **Details**: poster, synopsis, genres, requested seasons with their episode counts, who asked and when, who handled it.
+- **Details**: poster, synopsis, genres, who asked and when, who handled it; requested seasons with their episode counts and each one's status; download progress while Radarr/Sonarr fetch it; release date (or "upcoming"), a series' airing state and next episode; the server, quality, language and tags it was approved with; director or creators, network, age rating, original language; **Watch** (Jellyfin/Plex page, `w`) and **Trailer** (`v`) buttons.
 - **Approve with options**: choose the Radarr/Sonarr server, quality profile, root folder, language profile, tags and seasons, like Seerr's own approval dialog (anime defaults included). **Shift+click** (or `A`) approves straight away with Seerr's defaults.
 - **Decline, retry, delete** (with confirmation).
 - **Notifications** for new requests with **Details / Approve / Decline** buttons. Approve from a notification is a quick approval. Several new requests at once can be grouped, and optional notifications when a request becomes available or fails.

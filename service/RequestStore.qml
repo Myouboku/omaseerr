@@ -241,10 +241,11 @@ QtObject {
     for (var i = 0; i < list.length; i++) ensureMedia(list[i], null)
   }
 
-  function ensureMedia(req, cb) {
+  // `force` fetches even when the cache has it (see refreshMedia).
+  function ensureMedia(req, cb, force) {
     if (!req || !req.tmdbId) { if (cb) cb(null); return }
     var key = Api.mediaKey(req.type, req.tmdbId)
-    if (media[key]) { if (cb) cb(media[key]); return }
+    if (media[key] && !force) { if (cb) cb(media[key]); return }
     var waiting = _mediaWaiters[key]
     if (waiting) { if (cb) waiting.push(cb); return }
     _mediaWaiters[key] = cb ? [cb] : []
@@ -261,6 +262,15 @@ QtObject {
       }
       for (var i = 0; i < waiters.length; i++) waiters[i](value)
     })
+  }
+
+  // Fetches a media's details again (downloads progress, seasons become
+  // available). What the cache holds stays shown until the answer, and
+  // stays if the fetch fails. Skipped while a fetch of it is under way.
+  function refreshMedia(req) {
+    if (!req || !req.tmdbId) return
+    if (_mediaWaiters[Api.mediaKey(req.type, req.tmdbId)]) return
+    ensureMedia(req, null, true)
   }
 
   // The title alone and its year, for layouts that keep the year when the

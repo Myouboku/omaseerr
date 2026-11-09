@@ -142,6 +142,33 @@ function safeImagePath(value) {
   return /^\/[A-Za-z0-9_-]{1,64}\.(jpg|jpeg|png|webp)$/.test(s) ? s : ""
 }
 
+// A web link from Seerr (the Jellyfin/Plex page of a media) or one built
+// here: http(s) only, a plain host name or IPv6 literal, no user info, no
+// spaces, quotes, angle brackets or controls. Anything else is dropped
+// rather than handed to the browser.
+function safeWebUrl(value) {
+  if (typeof value !== "string" || value.length > 2048) return ""
+  var host = "(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)"
+  var rest = "(?:[/?#][^\\s\"'<>\\\\`{}|^\\u0000-\\u001f\\u007f]*)?"
+  return new RegExp("^https?://" + host + "(?::\\d{1,5})?" + rest + "$").test(value) ? value : ""
+}
+
+// The YouTube page of the media's trailer (a teaser when there is none),
+// built here from the video key rather than taken as a link.
+function trailerUrl(videos) {
+  if (!Array.isArray(videos)) return ""
+  var teaser = ""
+  for (var i = 0; i < videos.length && i < 50; i++) {
+    var v = videos[i]
+    if (!v || typeof v !== "object" || v.site !== "YouTube" || typeof v.key !== "string") continue
+    if (!/^[A-Za-z0-9_-]{6,32}$/.test(v.key)) continue
+    var url = "https://www.youtube.com/watch?v=" + v.key
+    if (v.type === "Trailer") return url
+    if (v.type === "Teaser" && !teaser) teaser = url
+  }
+  return teaser
+}
+
 function posterUrl(path, size) {
   var p = safeImagePath(path)
   if (!p) return ""
@@ -232,6 +259,94 @@ function normalizeCounts(value) {
   return out
 }
 
+// A non-negative number from the API (sizes in bytes), else 0.
+function amount(value) {
+  return typeof value === "number" && isFinite(value) && value > 0 ? value : 0
+}
+
+// Up to `max` names from a list of objects carrying `field`.
+function names(list, field, max, keep) {
+  var out = []
+  if (!Array.isArray(list)) return out
+  for (var i = 0; i < list.length && i < 200 && out.length < max; i++) {
+    var item = list[i]
+    if (!item || typeof item !== "object" || (keep && !keep(item))) continue
+    var n = Values.str(item[field], 80)
+    if (n && out.indexOf(n) === -1) out.push(n)
+  }
+  return out
+}
+
+// What Seerr's downloads tracker says of one item being downloaded.
+function normalizeDownload(raw) {
+  if (!raw || typeof raw !== "object") return null
+  var size = amount(raw.size)
+  var ep = raw.episode && typeof raw.episode === "object" ? raw.episode : null
+  return {
+    title: Values.str(raw.title, 200),
+    size: size,
+    sizeLeft: Math.min(size, amount(raw.sizeLeft)),
+    eta: Values.time(raw.estimatedCompletionTime),
+    status: Values.str(raw.status, 30),
+    season: ep ? Math.max(0, Values.int(ep.seasonNumber, 0)) : 0,
+    episode: ep ? Math.max(0, Values.int(ep.episodeNumber, 0)) : 0
+  }
+}
+
+function downloads(list) {
+  var out = []
+  if (!Array.isArray(list)) return out
+  for (var i = 0; i < list.length && out.length < 50; i++) {
+    var d = normalizeDownload(list[i])
+    if (d) out.push(d)
+  }
+  return out
+}
+
+// Seerr's own record of the media (mediaInfo): its status, each season's,
+// the downloads under way and the media server's page, for the regular and
+// the 4K side.
+function normalizeMediaInfo(raw) {
+  var info = raw && typeof raw === "object" ? raw : {}
+  var seasons = []
+  if (Array.isArray(info.seasons)) {
+    for (var i = 0; i < info.seasons.length && seasons.length < MAX_SEASONS; i++) {
+      var s = info.seasons[i]
+      if (!s || typeof s !== "object") continue
+      var n = Values.int(s.seasonNumber, -1)
+      if (n < 0) continue
+      seasons.push({ seasonNumber: n, status: Values.int(s.status, 0), status4k: Values.int(s.status4k, 0) })
+    }
+  }
+  return {
+    seasons: seasons,
+    downloads: downloads(info.downloadStatus),
+    downloads4k: downloads(info.downloadStatus4k),
+    mediaUrl: safeWebUrl(info.mediaUrl),
+    mediaUrl4k: safeWebUrl(info.mediaUrl4k)
+  }
+}
+
+// Age ratings by country: [{ country, rating }]. Movies carry them per
+// release date, series per country.
+function certifications(raw, isTv) {
+  var out = []
+  var list = isTv ? (raw.contentRatings && raw.contentRatings.results) : (raw.releases && raw.releases.results)
+  if (!Array.isArray(list)) return out
+  for (var i = 0; i < list.length && i < 120 && out.length < 80; i++) {
+    var r = list[i]
+    if (!r || typeof r !== "object" || typeof r.iso_3166_1 !== "string" || !/^[A-Z]{2}$/.test(r.iso_3166_1)) continue
+    var rating = ""
+    if (isTv) rating = Values.str(r.rating, 12)
+    else if (Array.isArray(r.release_dates))
+      for (var j = 0; j < r.release_dates.length && j < 20 && !rating; j++)
+        rating = r.release_dates[j] && typeof r.release_dates[j] === "object" ? Values.str(r.release_dates[j].certification, 12) : ""
+    rating = rating.trim()
+    if (rating) out.push({ country: r.iso_3166_1, rating: rating })
+  }
+  return out
+}
+
 function yearOf(date) {
   var m = typeof date === "string" ? date.match(/^(\d{4})-/) : null
   return m ? m[1] : ""
@@ -265,6 +380,9 @@ function normalizeMedia(raw, type) {
   for (var k = 0; k < keywords.length && k < 100; k++)
     if (keywords[k] && Values.int(keywords[k].id, 0) === ANIME_KEYWORD_ID) anime = true
   var date = isTv ? raw.firstAirDate : raw.releaseDate
+  var next = isTv && raw.nextEpisodeToAir && typeof raw.nextEpisodeToAir === "object" ? raw.nextEpisodeToAir : null
+  var crew = raw.credits && typeof raw.credits === "object" ? raw.credits.crew : null
+  var lang = typeof raw.originalLanguage === "string" && /^[a-z]{2,3}$/.test(raw.originalLanguage) ? raw.originalLanguage : ""
   return {
     title: Values.str(isTv ? (raw.name || raw.originalName) : (raw.title || raw.originalTitle), 200),
     year: yearOf(date),
@@ -275,7 +393,23 @@ function normalizeMedia(raw, type) {
     seasons: seasons,
     seasonCount: isTv ? Math.max(0, Values.int(raw.numberOfSeasons, seasons.length)) : 0,
     anime: anime,
-    vote: typeof raw.voteAverage === "number" && isFinite(raw.voteAverage) ? Math.round(raw.voteAverage * 10) / 10 : 0
+    vote: typeof raw.voteAverage === "number" && isFinite(raw.voteAverage) ? Math.round(raw.voteAverage * 10) / 10 : 0,
+    // Release (first air date for a series) and TMDB's production status
+    // ("Released", "Returning Series", "Ended", "Canceled"…).
+    released: Values.time(date),
+    productionStatus: Values.str(raw.status, 40),
+    nextEpisode: next ? {
+      season: Math.max(0, Values.int(next.seasonNumber, 0)),
+      episode: Math.max(0, Values.int(next.episodeNumber, 0)),
+      airDate: Values.time(next.airDate)
+    } : null,
+    // Directors for a movie, creators for a series.
+    people: isTv ? names(raw.createdBy, "name", 3) : names(crew, "name", 2, function(c) { return c.job === "Director" }),
+    networks: isTv ? names(raw.networks, "name", 3) : [],
+    certifications: certifications(raw, isTv),
+    originalLanguage: lang,
+    trailer: trailerUrl(raw.relatedVideos),
+    info: normalizeMediaInfo(raw.mediaInfo)
   }
 }
 

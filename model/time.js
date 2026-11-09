@@ -22,3 +22,16 @@ function shortDatePattern(ms, now) {
   var sameYear = new Date(ms).getFullYear() === new Date(now || Date.now()).getFullYear()
   return sameYear ? "d MMM" : "d MMM yyyy"
 }
+
+// How long until `ms` ("25 min", "2 h", "3 d"), in the same words as
+// relativeTime; "" once it has passed or when it is unknown.
+function remaining(ms, now, words) {
+  if (!ms) return ""
+  var diff = ms - (now || Date.now())
+  if (diff <= 0) return ""
+  var minute = 60000, hour = 3600000, day = 86400000
+  if (diff < minute) return words.minutes(1)
+  if (diff < hour) return words.minutes(Math.ceil(diff / minute))
+  if (diff < day) return words.hours(Math.round(diff / hour))
+  return words.days(Math.round(diff / day))
+}

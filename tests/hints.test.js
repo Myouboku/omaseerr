@@ -18,7 +18,7 @@ test("parseHints splits pairs and keys from labels", () => {
 // Every key cap a hint line may show. A key written with a space
 // ("Page Up …") would parse as the key "Page" and fail here.
 const KNOWN_KEYS = new Set([
-  "↑↓", "a", "a/A", "A", "d", "x", "o", "R", "s", "/", "f/t", "Tab",
+  "↑↓", "a", "a/A", "A", "d", "x", "o", "R", "s", "/", "f/t", "w", "v", "Tab",
   "Enter", "Shift+Enter", "Shift+Tab", "Space", "Esc",
   "Entrée", "Maj+Entrée", "Maj+Tab", "Espace", "Échap",
 ])

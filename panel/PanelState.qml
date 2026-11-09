@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Commons as Commons
 import "../model/cursor.js" as Cursor
+import "../model/details.js" as Details
 import "../model/requests.js" as Requests
 import "../model/time.js" as Time
 
@@ -167,6 +168,34 @@ QtObject {
     moveCursor(target - cursor)
   }
 
+  // ---------------------------------------------------------------- details
+
+  // The media of the request on display.
+  readonly property var detailMedia: detailReq && svc ? (svc.mediaRevision, svc.mediaFor(detailReq)) : null
+  // Being downloaded or partly there: its details move (downloads, seasons).
+  readonly property bool detailUnderWay: {
+    var k = Requests.statusKey(detailReq)
+    return k === "processing" || k === "partial"
+  }
+  readonly property string watchUrl: detailReq ? Details.watchUrl(detailMedia, detailReq.is4k) : ""
+  readonly property string trailerUrl: detailMedia ? detailMedia.trailer : ""
+
+  // Both links were checked when the details were read (Api.safeWebUrl,
+  // Api.trailerUrl).
+  function watch() { if (watchUrl) Qt.openUrlExternally(watchUrl) }
+  function trailer() { if (trailerUrl) Qt.openUrlExternally(trailerUrl) }
+
+  // While the request on display is under way, its details are fetched
+  // again, so the downloads and seasons move; a newly shown one at once.
+  property Timer _mediaRefresh: Timer {
+    interval: 15000
+    repeat: true
+    running: nav.ctx.opened && nav.page === "detail" && nav.detailUnderWay
+    onTriggered: nav.svc.refreshMedia(nav.detailReq)
+  }
+  onDetailIdChanged: if (detailUnderWay && svc && page === "detail") svc.refreshMedia(detailReq)
+  onPageChanged: if (page === "detail" && detailUnderWay && svc) svc.refreshMedia(detailReq)
+
   function cycleView(key, values, backwards) {
     if (!svc) return
     var patch = {}
@@ -330,6 +359,21 @@ QtObject {
       days: function(n) { return nav.ctx.t("age.days").arg(n) },
       date: function(v) { return new Date(v).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), Time.shortDatePattern(v, Date.now())) }
     })
+  }
+
+  // How long until `ms`, in the list's short words ("25 min").
+  function remaining(ms) {
+    return Time.remaining(ms, Math.max(now, Date.now() - 1000), {
+      minutes: function(n) { return nav.ctx.t("age.minutes").arg(n) },
+      hours: function(n) { return nav.ctx.t("age.hours").arg(n) },
+      days: function(n) { return nav.ctx.t("age.days").arg(n) }
+    })
+  }
+
+  // A date alone, with the year only when it is not this one ("9 Nov").
+  function shortDate(ms) {
+    if (!ms) return ""
+    return new Date(ms).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), Time.shortDatePattern(ms, Date.now()))
   }
 
   function relative(ms) {

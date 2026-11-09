@@ -84,6 +84,15 @@ test("request and panel actions", () => {
   }
 })
 
+test("w and v open the details' media server page and trailer", () => {
+  eq(press({ page: "detail", text: "w" }), { action: "watch" })
+  eq(press({ page: "detail", text: "v" }), { action: "trailer" })
+  eq(press({ page: "detail", text: "W" }), { action: "watch" }) // Caps Lock
+  eq(press({ text: "w" }), null)
+  eq(press({ text: "v" }), null)
+  eq(press({ page: "approve", text: "w" }), null)
+})
+
 test("R retries a failed request only", () => {
   eq(press({ text: "R", shift: true, status: Requests.REQUEST_FAILED }), { action: "retry" })
   eq(press({ page: "detail", text: "R", shift: true, status: Requests.REQUEST_FAILED }), { action: "retry" })

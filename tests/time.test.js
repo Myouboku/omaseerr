@@ -34,3 +34,14 @@ test("shortDatePattern leaves the year out for this year", () => {
   eq(Time.shortDatePattern(new Date(2025, 11, 31, 23, 59).getTime(), now), "d MMM yyyy")
   eq(Time.shortDatePattern(new Date(2027, 0, 1).getTime(), now), "d MMM yyyy")
 })
+
+test("remaining counts down to a moment ahead", () => {
+  const words = { minutes: n => n + "m", hours: n => n + "h", days: n => n + "d" }
+  const now = Date.parse("2026-11-08T12:00:00Z")
+  eq(Time.remaining(now + 30e3, now, words), "1m")
+  eq(Time.remaining(now + 25 * 60e3 - 1, now, words), "25m")
+  eq(Time.remaining(now + 2.4 * 3600e3, now, words), "2h")
+  eq(Time.remaining(now + 3 * 86400e3, now, words), "3d")
+  eq(Time.remaining(now - 1000, now, words), "")
+  eq(Time.remaining(0, now, words), "")
+})

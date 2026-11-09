@@ -21,6 +21,8 @@ var sortAsc = "\u{f04bc}"
 var retry = "\u{f0450}"
 var lock = "\u{f033e}"
 var warning = "\u{f0026}"
+var play = "\u{f040a}"
+var trailer = "\u{f05c3}"
 
 // One icon per status, shown with its label (and alone where room is short).
 function statusGlyph(key) {

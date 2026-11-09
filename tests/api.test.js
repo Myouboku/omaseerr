@@ -156,3 +156,57 @@ test("normalizeServers and details", () => {
   eq(details.rootFolders[1].freeSpace, -1)
   eq(Api.normalizeServerDetails({ profiles: [] }).languageProfiles, null)
 })
+
+test("normalizeMedia: release, people, ratings, trailer and Seerr's media info", () => {
+  const movie = Api.normalizeMedia({
+    title: "M", releaseDate: "2026-12-01", status: "Post Production", originalLanguage: "en",
+    credits: { crew: [{ job: "Writer", name: "W" }, { job: "Director", name: "D1" }, { job: "Director", name: "D1" }, { job: "Director", name: "D2" }, { job: "Director", name: "D3" }] },
+    releases: { results: [{ iso_3166_1: "FR", release_dates: [{ certification: "" }, { certification: "12" }] }, { iso_3166_1: "xx", release_dates: [{ certification: "X" }] }] },
+    relatedVideos: [{ site: "YouTube", key: "teaser01", type: "Teaser" }, { site: "Vimeo", key: "vimeo001", type: "Trailer" }, { site: "YouTube", key: "trailer1", type: "Trailer" }],
+    mediaInfo: {
+      seasons: [], mediaUrl: "https://app.plex.tv/desktop#!/x", mediaUrl4k: "javascript:alert(1)",
+      downloadStatus: [{ title: "M.2026.mkv", size: 1000, sizeLeft: 4000, estimatedCompletionTime: "2026-11-08T12:30:00Z", episode: { seasonNumber: 1, episodeNumber: 2 } }],
+      downloadStatus4k: "nope"
+    }
+  }, "movie")
+  eq(movie.released, Date.parse("2026-12-01"))
+  eq(movie.productionStatus, "Post Production")
+  eq(movie.people, ["D1", "D2"])
+  eq(movie.networks, [])
+  eq(movie.certifications, [{ country: "FR", rating: "12" }])
+  eq(movie.originalLanguage, "en")
+  eq(movie.trailer, "https://www.youtube.com/watch?v=trailer1")
+  eq(movie.info.mediaUrl, "https://app.plex.tv/desktop#!/x")
+  eq(movie.info.mediaUrl4k, "")
+  eq(movie.info.downloads[0].sizeLeft, 1000) // never more than the size
+  eq(movie.info.downloads[0].eta, Date.parse("2026-11-08T12:30:00Z"))
+  eq([movie.info.downloads[0].season, movie.info.downloads[0].episode], [1, 2])
+  eq(movie.info.downloads4k, [])
+  eq(movie.nextEpisode, null)
+
+  const tv = Api.normalizeMedia({
+    name: "S", firstAirDate: "2011-04-17", status: "Returning Series", originalLanguage: "EN!",
+    createdBy: [{ name: "C1" }, { name: "C2" }], networks: [{ name: "HBO" }, {}, "x"],
+    contentRatings: { results: [{ iso_3166_1: "US", rating: "TV-MA" }, { iso_3166_1: "FR", rating: " " }] },
+    nextEpisodeToAir: { seasonNumber: 2, episodeNumber: 5, airDate: "2026-11-14" },
+    relatedVideos: [{ site: "YouTube", key: "bad key!", type: "Trailer" }],
+    mediaInfo: { seasons: [{ seasonNumber: 1, status: 5, status4k: 1 }, { seasonNumber: -1 }] }
+  }, "tv")
+  eq(tv.people, ["C1", "C2"])
+  eq(tv.networks, ["HBO"])
+  eq(tv.certifications, [{ country: "US", rating: "TV-MA" }])
+  eq(tv.originalLanguage, "")
+  eq(tv.nextEpisode, { season: 2, episode: 5, airDate: Date.parse("2026-11-14") })
+  eq(tv.trailer, "")
+  eq(tv.info.seasons, [{ seasonNumber: 1, status: 5, status4k: 1 }])
+  eq(tv.info.mediaUrl, "")
+})
+
+test("safeWebUrl keeps media-server links and drops the rest", () => {
+  for (const ok of ["https://app.plex.tv/desktop#!/server/a/details?key=%2Flibrary%2Fmetadata%2F12",
+                    "http://jelly.lan:8096/web/index.html#!/details?id=ab&context=home&serverId=x", "https://[::1]:8096/web"])
+    eq(Api.safeWebUrl(ok), ok)
+  for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "https://user:pw@evil.com/", "https://a.com/\"x",
+                     "https://evil.com\\@good.com/", "https://a.com/ x", "https://a.com/<b>", "ftp://a.com", "", 42, "https://" + "a".repeat(2050)])
+    eq(Api.safeWebUrl(bad), "")
+})

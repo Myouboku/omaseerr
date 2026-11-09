@@ -62,6 +62,8 @@ QtObject {
     case "remove": nav.remove(req); break
     case "retry": svc.retry(req.id); break
     case "open": if (svc) svc.openInBrowser(req); break
+    case "watch": nav.watch(); break
+    case "trailer": nav.trailer(); break
     case "refresh": if (svc) svc.refresh(); break
     case "settings": nav.go("settings"); break
     case "focusSearch": if (content && content.searchField) content.searchField.forceActiveFocus(); break

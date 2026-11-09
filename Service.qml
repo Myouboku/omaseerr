@@ -187,6 +187,7 @@ Item {
   function fetchRequest(id, cb) { store.fetchRequest(id, cb) }
   function mediaFor(req) { return store.mediaFor(req) }
   function ensureMedia(req, cb) { store.ensureMedia(req, cb) }
+  function refreshMedia(req) { store.refreshMedia(req) }
   function nameFor(req) { return store.nameFor(req) }
   function yearFor(req) { return store.yearFor(req) }
   function titleFor(req) { return store.titleFor(req) }

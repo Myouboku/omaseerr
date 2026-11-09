@@ -47,7 +47,8 @@ dev/use-mock.sh off     # restores the saved URL, stops the mock, drops its key
 | `model/notify.js` | new requests, status changes, the state file, markup-proof text |
 | `model/settings.js` | plugin id, settings defaults and validation, the bar entry |
 | `model/form.js` | the approval form: servers, initial choices, problems, PUT body |
-| `model/time.js` | relative times, date patterns |
+| `model/details.js` | what the details show from the media: release state, downloads, season statuses, age rating, approval choices |
+| `model/time.js` | relative times, time left, date patterns |
 | `model/keymap.js` | which panel action a key stands for |
 | `model/cursor.js` | the list cursor, stepping between details, scrolling into view |
 | `model/hints.js` | shortcut hints: parsing `key label · …`, balanced line layout |

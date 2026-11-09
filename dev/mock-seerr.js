@@ -11,6 +11,11 @@
 // poster path that tries to leave TMDB.
 //
 // Extra endpoints to drive it while testing:
+// Media details carry what Seerr adds (mediaInfo: season statuses, downloads
+// that progress over time, the media server's page) and TMDB's extras
+// (release state, people, ratings, trailer). Movie 1100000 is not out yet
+// and only requested on demand.
+//
 //   POST /__mock/new?type=movie|tv[&tmdb=ID][&user=N][&4k=1]
 //                                      add a pending request (triggers a notification)
 //   POST /__mock/available?id=N        mark a request's media available
@@ -62,8 +67,32 @@ const catalog = {
   "tv:37854": { name: "One Piece", firstAirDate: "1999-10-20", numberOfSeasons: 2, posterPath: "/cMD9Ygz11zjJzAovURpO75Qg7rT.jpg", voteAverage: 8.7,
     keywords: [{ id: 210024, name: "anime" }], genres: [{ id: 16, name: "Animation" }],
     seasons: [{ seasonNumber: 1, name: "East Blue", episodeCount: 61 }, { seasonNumber: 2, name: "Alabasta", episodeCount: 77 }],
-    overview: "Monkey D. Luffy sets off on an adventure with his pirate crew." }
+    overview: "Monkey D. Luffy sets off on an adventure with his pirate crew." },
+  // Not out yet; only requested on demand (/__mock/new?type=movie&tmdb=1100000).
+  "movie:1100000": { title: "Tomorrow's Film", releaseDate: new Date(Date.now() + 40 * 86400e3).toISOString().slice(0, 10), runtime: 118,
+    posterPath: null, voteAverage: 0, genres: [{ id: 18, name: "Drama" }], overview: "A film that is not out yet." }
 }
+// What Seerr adds to TMDB's details and the panel shows: release and
+// production status, people, networks, age ratings, trailers.
+const extras = {
+  "movie:693134": { status: "Released", originalLanguage: "en", credits: { crew: [{ job: "Director", name: "Denis Villeneuve" }] },
+    releases: { results: [{ iso_3166_1: "FR", release_dates: [{ certification: "12" }] }, { iso_3166_1: "US", release_dates: [{ certification: "PG-13" }] }] },
+    relatedVideos: [{ site: "YouTube", key: "Way9Dexny3w", type: "Trailer", name: "Trailer" }] },
+  "movie:27205": { status: "Released", originalLanguage: "en", credits: { crew: [{ job: "Director", name: "Christopher Nolan" }] },
+    releases: { results: [{ iso_3166_1: "US", release_dates: [{ certification: "PG-13" }] }] },
+    relatedVideos: [{ site: "YouTube", key: "YoHD9XEInc0", type: "Trailer", name: "Trailer" }] },
+  "movie:603": { status: "Released", originalLanguage: "en", credits: { crew: [{ job: "Director", name: "Lana Wachowski" }, { job: "Director", name: "Lilly Wachowski" }] },
+    releases: { results: [{ iso_3166_1: "US", release_dates: [{ certification: "R" }] }] } },
+  "movie:1100000": { status: "Post Production", originalLanguage: "fr", credits: { crew: [{ job: "Director", name: "Jeanne Martin" }] } },
+  "tv:1399": { status: "Ended", originalLanguage: "en", createdBy: [{ name: "David Benioff" }, { name: "D. B. Weiss" }], networks: [{ name: "HBO" }],
+    contentRatings: { results: [{ iso_3166_1: "US", rating: "TV-MA" }, { iso_3166_1: "FR", rating: "16" }] },
+    relatedVideos: [{ site: "YouTube", key: "KPLWWIOCOOQ", type: "Trailer", name: "Trailer" }] },
+  "tv:1396": { status: "Ended", originalLanguage: "en", createdBy: [{ name: "Vince Gilligan" }], networks: [{ name: "AMC" }],
+    contentRatings: { results: [{ iso_3166_1: "US", rating: "TV-MA" }] } },
+  "tv:37854": { status: "Returning Series", originalLanguage: "ja", createdBy: [{ name: "Eiichiro Oda" }], networks: [{ name: "Fuji TV" }],
+    nextEpisodeToAir: { seasonNumber: 2, episodeNumber: 78, airDate: new Date(Date.now() + 5 * 86400e3).toISOString().slice(0, 10) } }
+}
+
 const pool = [["movie", 693134], ["movie", 27205], ["movie", 603], ["tv", 1399], ["tv", 1396], ["tv", 37854]]
 if (HOSTILE) pool.push(["movie", 550])
 
@@ -130,6 +159,38 @@ if (HOSTILE) addRequest("movie", 550, 4, { ageMin: 30 })
 // never reuses one; otherwise the plugin would take them for already seen.
 nextId = Math.max(nextId, Math.floor(Date.now() / 1000) % 1000000)
 
+// Seerr's record of a media as its details carry it: each season's status,
+// the downloads under way (they progress at 25 MB/s from the mock's start)
+// and the media server's page once something is available.
+const started = Date.now()
+function download(title, size, offset, episode) {
+  const left = Math.max(size * 0.05, size - offset - (Date.now() - started) / 1000 * 25e6)
+  return { mediaType: episode ? "tv" : "movie", externalId: 1, size, sizeLeft: left, status: "downloading",
+    timeLeft: "", estimatedCompletionTime: new Date(Date.now() + left / 25e6 * 1000).toISOString(), title, downloadId: "x", episode }
+}
+function mediaInfo(type, tmdbId) {
+  const m = media[type + ":" + tmdbId]
+  if (!m) return undefined
+  const info = { id: m.id, tmdbId, status: m.status, status4k: m.status4k, seasons: [], downloadStatus: [], downloadStatus4k: [] }
+  const seasonsAsked = new Set()
+  for (const r of requests) if (r.media === m) for (const s of r.seasons) seasonsAsked.add(s.seasonNumber)
+  const asked = [...seasonsAsked].sort((a, b) => a - b)
+  if (type === "tv") info.seasons = asked.map((n, i) => ({ seasonNumber: n,
+    status: m.status === 5 ? 5 : m.status === 4 ? (i < asked.length - 2 ? 5 : 3) : m.status === 3 ? 3 : 2, status4k: 1 }))
+  const title = (catalog[type + ":" + tmdbId] || {}).title || (catalog[type + ":" + tmdbId] || {}).name || "Media"
+  if (m.status === 3 || m.status === 4) {
+    if (type === "movie") info.downloadStatus = [download(title.replace(/\W+/g, ".") + ".2160p.mkv", 18e9, 6e9)]
+    else {
+      const s = asked[asked.length - 1] || 1
+      info.downloadStatus = [1, 2, 3].map(e => download(title.replace(/\W+/g, ".") + ".S" + String(s).padStart(2, "0") + "E" + String(e).padStart(2, "0") + ".mkv",
+        2.2e9, e * 6e8, { seasonNumber: s, episodeNumber: e }))
+    }
+  }
+  if (m.status === 4 || m.status === 5) info.mediaUrl = "http://127.0.0.1:8096/web/index.html#!/details?id=" + m.id.toString(16).padStart(8, "0") + "&context=home&serverId=mock"
+  if (m.status4k === 5) info.mediaUrl4k = "http://127.0.0.1:8096/web/index.html#!/details?id=" + (m.id + 4096).toString(16) + "&context=home&serverId=mock"
+  return info
+}
+
 function send(res, status, body) {
   const text = body === undefined ? "" : JSON.stringify(body)
   setTimeout(() => {
@@ -176,7 +237,9 @@ const server = http.createServer(async (req, res) => {
     if (path === "/__mock/new") {
       const type = q.get("type") || (Math.random() < 0.5 ? "movie" : "tv")
       const choices = pool.filter(p => p[0] === type)
-      const forced = pool.find(p => String(p[1]) === q.get("tmdb"))
+      // Any media of the catalog, including those not drawn at random.
+      const asked = q.get("tmdb")
+      const forced = asked && catalog[type + ":" + asked] ? [type, Number(asked)] : pool.find(p => String(p[1]) === asked)
       const [t, id] = forced || choices[Math.floor(Math.random() * choices.length)]
       const user = q.get("user") ? Number(q.get("user")) : [3, 4, 5][Math.floor(Math.random() * 3)]
       const r = addRequest(t, id, users[user] ? user : 3, { seasons: t === "tv" ? [1] : undefined, is4k: q.get("4k") === "1" })
@@ -260,9 +323,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && (m = api.match(/^\/(movie|tv)\/(\d+)$/))) {
-    const d = catalog[m[1] + ":" + m[2]]
+    const key = m[1] + ":" + m[2]
+    const d = catalog[key]
     if (!d) return send(res, 404, { message: "Unable to retrieve media." })
-    return send(res, 200, Object.assign({ id: Number(m[2]) }, d))
+    return send(res, 200, Object.assign({ id: Number(m[2]) }, d, extras[key] || {}, { mediaInfo: mediaInfo(m[1], Number(m[2])) }))
   }
 
   if (req.method === "GET" && (m = api.match(/^\/service\/(radarr|sonarr)$/))) return send(res, 200, m[1] === "radarr" ? radarr : sonarr)
