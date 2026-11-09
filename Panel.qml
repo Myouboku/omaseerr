@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "model/Seerr.js" as Seerr
+import "ui"
 
 // The bar icon and its panel. One of these exists per monitor; all state and
 // network traffic live in Service.qml, which every copy shares.
@@ -1615,6 +1616,8 @@ Panel {
             anchors.verticalCenter: rowTitle.verticalCenter
             visible: !!row.req && row.req.is4k
             text: "4K"
+            tone: root.dim
+            fontFamily: root.fontFamily
           }
         }
         PlainText {
@@ -1786,23 +1789,6 @@ Panel {
     }
   }
 
-  component Tag: Rectangle {
-    property alias text: tagLabel.text
-    implicitWidth: tagLabel.implicitWidth + Style.space(8)
-    implicitHeight: tagLabel.implicitHeight + Style.space(2)
-    radius: Style.space(3)
-    color: "transparent"
-    border.width: 1
-    border.color: root.dim
-    PlainText {
-      id: tagLabel
-      anchors.centerIn: parent
-      color: root.dim
-      font.pixelSize: Style.font.caption
-      font.bold: true
-    }
-  }
-
   // Keyboard shortcuts as "key label · key label …" (the translation's
   // format): each pair is laid out as one unbreakable cap + label, so a line
   // only ever wraps between shortcuts, never inside one. Lines are centred
@@ -1878,6 +1864,8 @@ Panel {
         Tag {
           anchors.verticalCenter: parent.verticalCenter
           text: modelData.keys
+          tone: root.dim
+          fontFamily: root.fontFamily
         }
         PlainText {
           anchors.verticalCenter: parent.verticalCenter
