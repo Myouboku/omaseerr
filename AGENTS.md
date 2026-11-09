@@ -132,5 +132,7 @@ the journal.
 ## Git
 
 - Commit messages in English, imperative subject, a short body saying why.
-- Commit, push or tag only when the user asks. Work happens on `v1`; `master`
-  is the main branch.
+- Work happens on `v1`; `master` is the main branch. On `v1`, commit and
+  push finished, verified work without waiting to be asked, unless it is
+  sensitive. Anything on `master`, tags, pull requests and releases only
+  when the user asks.
