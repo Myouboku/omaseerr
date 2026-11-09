@@ -396,27 +396,9 @@ Item {
         lineHeight: 1.15
       }
 
-      Flow {
+      CenteredFlow {
         width: parent.width
-        spacing: Style.space(6)
         visible: !!detailRoot.req
-        ActionButton {
-          visible: ctx.nav.watchUrl !== ""
-          label: ctx.t("action.watch")
-          glyph: Glyphs.play
-          primary: true
-          tooltip: ctx.t("action.watch") + "  (w)"
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.watch()
-        }
-        ActionButton {
-          visible: ctx.nav.trailerUrl !== ""
-          label: ctx.t("action.trailer")
-          glyph: Glyphs.trailer
-          tooltip: ctx.t("action.trailer") + "  (v)"
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.trailer()
-        }
         ActionButton {
           visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
           label: ctx.t("action.approve")
@@ -442,6 +424,24 @@ Item {
           busy: detailRoot.busy
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
           onActivated: ctx.svc.retry(detailRoot.req.id)
+        }
+        // Then the links, and deleting last.
+        ActionButton {
+          visible: ctx.nav.watchUrl !== ""
+          label: ctx.t("action.watch")
+          glyph: Glyphs.play
+          primary: true
+          tooltip: ctx.t("action.watch") + "  (w)"
+          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+          onActivated: ctx.nav.watch()
+        }
+        ActionButton {
+          visible: ctx.nav.trailerUrl !== ""
+          label: ctx.t("action.trailer")
+          glyph: Glyphs.trailer
+          tooltip: ctx.t("action.trailer") + "  (v)"
+          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+          onActivated: ctx.nav.trailer()
         }
         ActionButton {
           label: ctx.t("action.delete")
@@ -471,7 +471,7 @@ Item {
       var extra = []
       if (ctx.nav.watchUrl) extra.push(ctx.t("detail.keysWatch"))
       if (ctx.nav.trailerUrl) extra.push(ctx.t("detail.keysTrailer"))
-      return extra.length ? extra.join(" · ") + " · " + base : base
+      return extra.length ? base + " · " + extra.join(" · ") : base
     }
     tone: ctx.dim
     fontFamily: ctx.fontFamily
