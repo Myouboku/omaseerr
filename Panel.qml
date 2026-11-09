@@ -7,6 +7,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "model/Seerr.js" as Seerr
 import "ui"
+import "ui/Glyphs.js" as Glyphs
 
 // The bar icon and its panel. One of these exists per monitor; all state and
 // network traffic live in Service.qml, which every copy shares.
@@ -73,43 +74,6 @@ Panel {
   readonly property var cfg: svc ? svc.settings : Seerr.normalizeSettings({})
   readonly property bool connected: !!svc && svc.connection === "connected"
   readonly property int pending: svc ? svc.counts.pending : 0
-
-  // ---------------------------------------------------------------- glyphs
-
-  readonly property string gSeerr: "\u{f0fce}"
-  readonly property string gMovie: "\u{f0381}"
-  readonly property string gTv: "\u{f0502}"
-  readonly property string gCheck: "\u{f012c}"
-  readonly property string gClose: "\u{f0156}"
-  readonly property string gRefresh: "\u{f0450}"
-  readonly property string gCog: "\u{f0493}"
-  readonly property string gDelete: "\u{f01b4}"
-  readonly property string gOpen: "\u{f03cc}"
-  readonly property string gBack: "\u{f004d}"
-  readonly property string gAlert: "\u{f0028}"
-  readonly property string gKey: "\u{f0306}"
-  readonly property string gBolt: "\u{f140b}"
-  readonly property string gSearch: "\u{f0349}"
-  readonly property string gSortDesc: "\u{f04bd}"
-  readonly property string gSortAsc: "\u{f04bc}"
-  readonly property string gRetry: "\u{f0450}"
-  readonly property string gLock: "\u{f033e}"
-  readonly property string gWarning: "\u{f0026}"
-
-  // One icon per status, shown with its label (and alone where room is short).
-  function statusGlyph(key) {
-    switch (key) {
-    case "pending": return "\u{f0150}"      // clock
-    case "processing": return "\u{f01da}"   // download
-    case "partial": return "\u{f1395}"      // half circle
-    case "available":
-    case "completed": return "\u{f05e0}"    // check circle
-    case "declined":
-    case "deleted": return "\u{f0159}"      // close circle
-    case "failed": return "\u{f0028}"       // alert circle
-    default: return "\u{f02d7}"             // help circle
-    }
-  }
 
   // ---------------------------------------------------------------- navigation
 
@@ -547,7 +511,7 @@ Panel {
     // wait; a warning sign in red when Seerr is unreachable, so it does not
     // hang on telling two colours apart; dimmed while not set up or
     // connecting.
-    text: root.svc && root.svc.connection === "error" ? root.gWarning : root.gSeerr
+    text: root.svc && root.svc.connection === "error" ? Glyphs.warning : Glyphs.seerr
     foreground: {
       if (!root.svc || root.svc.connection === "unconfigured" || root.svc.connection === "connecting")
         return Qt.darker(root.barForeground, 1.55)
@@ -612,7 +576,16 @@ Panel {
       ApprovePage { id: approvePage; anchors.fill: parent; visible: root.page === "approve"; FadeIn on opacity {} }
       SettingsPage { id: settingsPage; anchors.fill: parent; visible: root.page === "settings"; FadeIn on opacity {} }
 
-      Toast { z: 5 }
+      Toast {
+        z: 5
+        message: root.flashText
+        isError: root.flashError
+        serial: root.flashSerial
+        foreground: root.foreground
+        success: root.statusColor("available")
+        urgent: root.urgent
+        fontFamily: root.fontFamily
+      }
 
       ConfirmDialog {
         id: confirmDialog
@@ -642,6 +615,16 @@ Panel {
     implicitHeight: header.implicitHeight + Style.space(10) + Math.max(Style.space(60), flick.contentHeight)
                     + (listKeys.visible ? listKeys.topMargin + listKeys.implicitHeight : 0)
 
+    // The line under a request's title: type, seasons, who asked, and when.
+    function rowDetails(r) {
+      if (!r) return ""
+      var parts = [(r.type === "tv" ? Glyphs.tv + " " + root.t("type.tv") : Glyphs.movie + " " + root.t("type.movie"))]
+      if (r.type === "tv" && r.seasons.length) parts.push(root.t("detail.seasonsShort").arg(Seerr.seasonsLabel(r.seasons)))
+      if (r.requestedBy) parts.push(r.requestedBy.name)
+      parts.push(root.age(root.svc && root.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
+      return parts.join(" · ")
+    }
+
     Column {
       id: header
       width: parent.width
@@ -650,6 +633,7 @@ Panel {
       TopBar {
         width: parent.width
         title: "Seerr"
+        icon: Glyphs.seerr
         subtitle: {
           if (!root.svc) return ""
           if (root.offline) return root.retrying ? root.t("bar.connecting") : root.t("bar.error")
@@ -664,14 +648,24 @@ Panel {
         subtitleTooltip: root.t("filter.pending") + "  (f)"
         onSubtitleClicked: { root.cursor = 0; root.svc.setView({ filter: "pending" }) }
         showBack: false
+        foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
         IconButton {
-          glyph: root.gRefresh
+          glyph: Glyphs.refresh
           tooltip: root.t("action.refresh") + "  (r)"
           spinning: !!root.svc && (root.svc.listLoading || root.svc.connection === "connecting")
+          foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
           onActivated: if (root.svc) root.svc.refresh()
         }
-        IconButton { glyph: root.gOpen; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!root.svc && root.svc.baseUrl !== ""; onActivated: root.svc.openInBrowser(null) }
-        IconButton { glyph: root.gCog; tooltip: root.t("settings.title") + "  (s)"; onActivated: root.go("settings") }
+        IconButton {
+          glyph: Glyphs.open; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!root.svc && root.svc.baseUrl !== ""
+          foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
+          onActivated: root.svc.openInBrowser(null)
+        }
+        IconButton {
+          glyph: Glyphs.cog; tooltip: root.t("settings.title") + "  (s)"
+          foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
+          onActivated: root.go("settings")
+        }
       }
 
       // Filters: status, type, sort, direction.
@@ -746,6 +740,14 @@ Panel {
       OfflineBanner {
         width: parent.width
         visible: root.offline && root.visibleRows.length > 0
+        title: root.svc && root.svc.lastOkAt > 0
+          ? root.t("list.offlineSince").arg(new Date(root.svc.lastOkAt).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat))
+          : root.t("list.offlineTitle")
+        detail: root.svc ? root.svc.lastError : ""
+        retryLabel: root.t("action.retry")
+        retrying: root.retrying
+        foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
+        onRetry: root.svc.refresh()
       }
     }
 
@@ -775,11 +777,33 @@ Panel {
           id: rowRepeater
           model: root.visibleRows
           RequestRow {
+            id: row
             required property var modelData
             required property int index
+            readonly property var req: modelData
+            readonly property var media: root.svc ? (root.svc.mediaRevision, root.svc.mediaFor(req)) : null
             width: rowCol.width
-            req: modelData
-            rowIndex: index
+            title: root.svc ? root.svc.nameFor(req) : ""
+            year: root.svc ? (root.svc.mediaRevision, root.svc.yearFor(req)) : ""
+            is4k: !!req.is4k
+            details: listRoot.rowDetails(req)
+            showPoster: root.cfg.showPosters
+            posterUrl: root.cfg.showPosters ? Seerr.posterUrl(media ? media.posterPath : "", "w92") : ""
+            posterType: req.type
+            status: Seerr.statusKey(req)
+            statusLabel: root.t("statusShort." + row.status)
+            statusTone: root.statusColor(row.status)
+            actionable: req.status === Seerr.REQUEST_PENDING && !!root.svc && root.svc.canManage && !root.offline
+            busy: !!root.svc && root.svc.isBusy(req.id)
+            approveTooltip: root.t("action.approve") + "  (a)\n" + root.t("hint.shiftApprove")
+            declineTooltip: root.t("action.decline") + "  (d)"
+            selected: root.cursor === row.index
+            keyboardActive: root.listFocused
+            foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
+            onPointed: root.cursor = row.index
+            onOpened: root.openDetail(req)
+            onApproveClicked: function(mods) { root.approve(req, (mods & Qt.ShiftModifier) !== 0) }
+            onDeclineClicked: root.decline(req)
           }
         }
       }
@@ -797,8 +821,9 @@ Panel {
         PlainText {
           anchors.horizontalCenter: parent.horizontalCenter
           visible: root.offline && root.visibleRows.length === 0
-          text: root.gWarning
+          text: Glyphs.warning
           color: root.retrying ? root.dim : root.urgent
+          font.family: root.fontFamily
           font.pixelSize: Style.font.display
         }
         PlainText {
@@ -806,6 +831,8 @@ Panel {
           horizontalAlignment: Text.AlignHCenter
           visible: root.offline && root.visibleRows.length === 0
           text: root.t("list.offlineTitle")
+          color: root.foreground
+          font.family: root.fontFamily
           font.bold: true
         }
         Hint {
@@ -827,12 +854,15 @@ Panel {
             return root.t("list.emptyFilter")
           }
           color: root.svc && root.svc.listError ? root.urgent : root.dim
+          font.family: root.fontFamily
         }
         Hint {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
           visible: root.connected && !!root.svc && root.svc.view.search !== "" && root.visibleRows.length === 0 && !root.svc.listLoading
           text: root.t("list.clearSearch")
+          color: root.dim
+          font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
         Row {
@@ -842,14 +872,16 @@ Panel {
           ActionButton {
             visible: root.offline
             label: root.t("action.retry")
-            glyph: root.gRetry
+            glyph: Glyphs.retry
             primary: true
             busy: root.retrying
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.svc.refresh()
           }
           ActionButton {
             label: root.t("settings.title")
-            glyph: root.gCog
+            glyph: Glyphs.cog
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.go("settings")
           }
         }
@@ -865,6 +897,8 @@ Panel {
       anchors.bottom: parent.bottom
       visible: root.connected
       text: root.t("list.keys")
+      tone: root.dim
+      fontFamily: root.fontFamily
     }
   }
 
@@ -882,7 +916,14 @@ Panel {
       width: parent.width
       title: detailRoot.req ? root.t("detail.title") : root.t("list.loading")
       showBack: true
-      IconButton { glyph: root.gOpen; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!detailRoot.req; onActivated: root.svc.openInBrowser(detailRoot.req) }
+      backTooltip: root.t("action.back") + "  (Esc)"
+      foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
+      onBack: root.back()
+      IconButton {
+        glyph: Glyphs.open; tooltip: root.t("action.openSeerr") + "  (o)"; enabled: !!detailRoot.req
+        foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
+        onActivated: root.svc.openInBrowser(detailRoot.req)
+      }
     }
 
     Flickable {
@@ -912,9 +953,9 @@ Panel {
             visible: root.cfg.showPosters
             width: Style.space(92)
             height: Style.space(138)
-            path: detailRoot.media ? detailRoot.media.posterPath : ""
-            size: "w185"
+            url: root.cfg.showPosters ? Seerr.posterUrl(detailRoot.media ? detailRoot.media.posterPath : "", "w185") : ""
             type: detailRoot.req ? detailRoot.req.type : "movie"
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
           Column {
             width: parent.width - (root.cfg.showPosters ? Style.space(104) : 0)
@@ -922,6 +963,8 @@ Panel {
             PlainText {
               width: parent.width
               text: detailRoot.media ? detailRoot.media.title : ""
+              color: root.foreground
+              font.family: root.fontFamily
               font.pixelSize: Style.font.heading
               wrapMode: Text.WordWrap
               maximumLineCount: 3
@@ -930,6 +973,7 @@ Panel {
             PlainText {
               width: parent.width
               color: root.dim
+              font.family: root.fontFamily
               text: {
                 var r = detailRoot.req, m = detailRoot.media
                 if (!r) return ""
@@ -947,38 +991,54 @@ Panel {
               width: parent.width
               visible: text !== ""
               color: root.dim
+              font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               text: detailRoot.media ? detailRoot.media.genres.join(", ") : ""
               elide: Text.ElideRight
             }
-            StatusBadge { status: detailRoot.status }
+            StatusBadge {
+              status: detailRoot.status
+              label: root.t("status." + detailRoot.status)
+              tone: root.statusColor(detailRoot.status)
+              fontFamily: root.fontFamily
+            }
           }
         }
 
         Column {
           width: parent.width
           spacing: Style.spacing.labelGap
-          InfoPair { label: root.t("detail.requestedBy"); value: detailRoot.req && detailRoot.req.requestedBy ? detailRoot.req.requestedBy.name : "" }
-          InfoPair { label: root.t("detail.requested"); value: detailRoot.req ? root.longDate(detailRoot.req.createdAt) : "" }
+          InfoPair {
+            label: root.t("detail.requestedBy"); value: detailRoot.req && detailRoot.req.requestedBy ? detailRoot.req.requestedBy.name : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
+          }
+          InfoPair {
+            label: root.t("detail.requested"); value: detailRoot.req ? root.longDate(detailRoot.req.createdAt) : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
+          }
           InfoPair {
             visible: !!detailRoot.req && !!detailRoot.req.modifiedBy
             label: detailRoot.status === "declined" ? root.t("detail.declinedBy") : root.t("detail.modifiedBy")
             value: detailRoot.req && detailRoot.req.modifiedBy ? detailRoot.req.modifiedBy.name : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
           InfoPair {
             visible: !!detailRoot.req && detailRoot.req.updatedAt > detailRoot.req.createdAt + 1000
             label: root.t("detail.updated")
             value: detailRoot.req ? root.longDate(detailRoot.req.updatedAt) : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
           InfoPair {
             visible: !!detailRoot.req && detailRoot.req.type === "tv"
             label: root.t("detail.seasons")
             value: detailRoot.req ? Seerr.seasonsLabel(detailRoot.req.seasons) : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
           InfoPair {
             visible: !!detailRoot.req && detailRoot.req.rootFolder !== ""
             label: root.t("detail.rootFolder")
             value: detailRoot.req ? detailRoot.req.rootFolder : ""
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
         }
 
@@ -989,6 +1049,8 @@ Panel {
           width: parent.width
           visible: text !== ""
           text: detailRoot.media ? detailRoot.media.overview : ""
+          color: root.foreground
+          font.family: root.fontFamily
           wrapMode: Text.WordWrap
           font.pixelSize: Style.font.bodySmall
           lineHeight: 1.15
@@ -1001,31 +1063,35 @@ Panel {
           ActionButton {
             visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING && !!root.svc && root.svc.canManage
             label: root.t("action.approve")
-            glyph: root.gCheck
+            glyph: Glyphs.check
             primary: true
             busy: detailRoot.busy
             tooltip: root.t("hint.shiftApprove")
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: function(mods) { root.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
           }
           ActionButton {
             visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING && !!root.svc && root.svc.canManage
             label: root.t("action.decline")
-            glyph: root.gClose
+            glyph: Glyphs.close
             busy: detailRoot.busy
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.decline(detailRoot.req)
           }
           ActionButton {
             visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_FAILED && !!root.svc && root.svc.canManage
             label: root.t("action.retry")
-            glyph: root.gRetry
+            glyph: Glyphs.retry
             busy: detailRoot.busy
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.svc.retry(detailRoot.req.id)
           }
           ActionButton {
             label: root.t("action.delete")
-            glyph: root.gDelete
+            glyph: Glyphs.trash
             danger: true
             busy: detailRoot.busy
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.remove(detailRoot.req)
           }
         }
@@ -1046,6 +1112,8 @@ Panel {
         if (r && r.status === Seerr.REQUEST_FAILED) return root.t("detail.keysFailed")
         return root.t("detail.keysDone")
       }
+      tone: root.dim
+      fontFamily: root.fontFamily
     }
   }
 
@@ -1061,6 +1129,9 @@ Panel {
       width: parent.width
       title: root.t("approve.title")
       showBack: true
+      backTooltip: root.t("action.back") + "  (Esc)"
+      foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
+      onBack: root.back()
     }
 
     Flickable {
@@ -1091,9 +1162,9 @@ Panel {
             visible: root.cfg.showPosters
             Layout.preferredWidth: Style.space(36)
             Layout.preferredHeight: Style.space(54)
-            path: root.formMedia ? root.formMedia.posterPath : ""
-            size: "w92"
+            url: root.cfg.showPosters ? Seerr.posterUrl(root.formMedia ? root.formMedia.posterPath : "", "w92") : ""
             type: approveRoot.req ? approveRoot.req.type : "movie"
+            foreground: root.foreground; dim: root.dim; fontFamily: root.fontFamily
           }
           ColumnLayout {
             Layout.fillWidth: true
@@ -1101,12 +1172,15 @@ Panel {
             PlainText {
               Layout.fillWidth: true
               text: approveRoot.req && root.svc ? root.svc.titleFor(approveRoot.req) : ""
+              color: root.foreground
+              font.family: root.fontFamily
               font.bold: true
               elide: Text.ElideRight
             }
             PlainText {
               Layout.fillWidth: true
               color: root.dim
+              font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               elide: Text.ElideRight
               text: {
@@ -1125,12 +1199,15 @@ Panel {
           width: parent.width
           visible: root.formLoading
           text: root.t("approve.loading")
+          color: root.dim
+          font.family: root.fontFamily
         }
         Hint {
           width: parent.width
           visible: root.formError !== ""
           text: root.formError
           color: root.urgent
+          font.family: root.fontFamily
         }
 
         SyncedDropdown {
@@ -1181,7 +1258,7 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
           visible: !!root.form && !!root.formDetails && root.formDetails.tags.length > 0
-          FieldLabel { text: root.t("approve.tags") }
+          FieldLabel { text: root.t("approve.tags"); color: root.dim; font.family: root.fontFamily }
           Flow {
             width: parent.width
             spacing: Style.space(5)
@@ -1191,6 +1268,7 @@ Panel {
                 required property var modelData
                 label: modelData.name
                 selected: !!root.form && root.form.tags.indexOf(modelData.id) !== -1
+                foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
                 onActivated: root.setForm({ tags: Seerr.toggleInList(root.form.tags, modelData.id) })
               }
             }
@@ -1201,7 +1279,7 @@ Panel {
           width: parent.width
           spacing: Style.space(6)
           visible: !!root.form && !!approveRoot.req && approveRoot.req.type === "tv"
-          FieldLabel { text: root.t("approve.seasons") }
+          FieldLabel { text: root.t("approve.seasons"); color: root.dim; font.family: root.fontFamily }
           Flow {
             width: parent.width
             spacing: Style.space(5)
@@ -1217,6 +1295,7 @@ Panel {
                 label: root.t("approve.season").arg(modelData.seasonNumber)
                 tooltip: modelData.episodeCount ? root.tn("approve.episodes", modelData.episodeCount) : ""
                 selected: !!root.form && root.form.seasons.indexOf(modelData.seasonNumber) !== -1
+                foreground: root.foreground; accent: root.accent; fontFamily: root.fontFamily
                 onActivated: root.setForm({ seasons: Seerr.toggleInList(root.form.seasons, modelData.seasonNumber) })
               }
             }
@@ -1228,22 +1307,25 @@ Panel {
           spacing: Style.space(6)
           ActionButton {
             label: root.t("action.approve")
-            glyph: root.gCheck
+            glyph: Glyphs.check
             primary: true
             busy: approveRoot.busy
             enabled: !!root.form && !root.formLoading && Seerr.formProblem(approveRoot.req, root.form) === ""
             tooltip: root.t("hint.shiftApprove")
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: function(mods) { root.submitForm((mods & Qt.ShiftModifier) !== 0) }
           }
           ActionButton {
             label: root.t("approve.quick")
-            glyph: root.gBolt
+            glyph: Glyphs.bolt
             busy: approveRoot.busy
             visible: root.formError !== "" || !root.form
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.submitForm(true)
           }
           ActionButton {
             label: root.t("action.cancel")
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.back()
           }
         }
@@ -1258,6 +1340,8 @@ Panel {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       text: root.t("approve.keys")
+      tone: root.dim
+      fontFamily: root.fontFamily
     }
   }
 
@@ -1276,6 +1360,9 @@ Panel {
       width: parent.width
       title: root.t("settings.title")
       showBack: true
+      backTooltip: root.t("action.back") + "  (Esc)"
+      foreground: root.foreground; dim: root.dim; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
+      onBack: root.back()
     }
 
     Flickable {
@@ -1300,7 +1387,7 @@ Panel {
         // -------- connection
         PanelSectionHeader { text: root.t("settings.connection"); foreground: root.foreground; fontFamily: root.fontFamily }
 
-        FieldLabel { text: root.t("settings.url") }
+        FieldLabel { text: root.t("settings.url"); color: root.dim; font.family: root.fontFamily }
         RowLayout {
           width: parent.width
           spacing: Style.space(6)
@@ -1319,6 +1406,7 @@ Panel {
             id: saveUrl
             label: root.t("action.save")
             enabled: urlField.text.trim() !== root.cfg.url
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: {
               var n = Seerr.normalizeBaseUrl(urlField.text)
               if (urlField.text.trim() === "") { root.saveSetting({ url: "" }); return }
@@ -1333,10 +1421,11 @@ Panel {
           visible: !!root.svc && root.svc.exposed
           text: root.t("settings.httpWarning")
           color: root.urgent
+          font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
 
-        FieldLabel { text: root.t("settings.apiKey") }
+        FieldLabel { text: root.t("settings.apiKey"); color: root.dim; font.family: root.fontFamily }
         RowLayout {
           width: parent.width
           spacing: Style.space(6)
@@ -1354,8 +1443,9 @@ Panel {
           ActionButton {
             id: saveKey
             label: root.t("action.save")
-            glyph: root.gLock
+            glyph: Glyphs.lock
             enabled: keyField.text.trim() !== ""
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: {
               if (root.svc && root.svc.storeKey(keyField.text)) keyField.text = ""
               else root.flash(root.svc ? root.svc.keyMessage : "", true)
@@ -1365,11 +1455,14 @@ Panel {
           ActionButton {
             label: root.t("action.remove")
             visible: !!root.svc && root.svc.keyState === "ok"
+            foreground: root.foreground; accent: root.accent; urgent: root.urgent; fontFamily: root.fontFamily
             onActivated: root.svc.clearKey()
           }
         }
         Hint {
           width: parent.width
+          color: root.dim
+          font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           text: root.t("settings.keyHelp")
         }
@@ -1388,9 +1481,10 @@ Panel {
             return ""
           }
           color: !!root.svc && (root.svc.connection === "error" || root.svc.keyMessage !== "" || (root.svc.connection === "connected" && !root.svc.canManage)) ? root.urgent : root.dim
+          font.family: root.fontFamily
         }
 
-        SettingChoice {
+        BoundChoice {
           key: "refreshIntervalSec"
           numeric: true
           label: root.t("settings.refreshInterval")
@@ -1400,15 +1494,15 @@ Panel {
         // -------- notifications
         PanelSeparator { foreground: root.foreground }
         PanelSectionHeader { text: root.t("settings.notifications"); foreground: root.foreground; fontFamily: root.fontFamily }
-        SettingToggle { key: "notifyNewRequests"; label: root.t("settings.notifyNewRequests"); description: root.t("settings.notifyNewRequestsHelp") }
-        SettingToggle { key: "notifyStatusChanges"; label: root.t("settings.notifyStatusChanges"); description: root.t("settings.notifyStatusChangesHelp") }
-        SettingToggle { key: "notifyPoster"; label: root.t("settings.notifyPoster"); description: root.t("settings.notifyPosterHelp") }
-        SettingChoice {
+        BoundToggle { key: "notifyNewRequests"; label: root.t("settings.notifyNewRequests"); description: root.t("settings.notifyNewRequestsHelp") }
+        BoundToggle { key: "notifyStatusChanges"; label: root.t("settings.notifyStatusChanges"); description: root.t("settings.notifyStatusChangesHelp") }
+        BoundToggle { key: "notifyPoster"; label: root.t("settings.notifyPoster"); description: root.t("settings.notifyPosterHelp") }
+        BoundChoice {
           key: "notifyUrgency"
           label: root.t("settings.notifyUrgency")
           options: ["low", "normal", "critical"].map(function(v) { return { value: v, label: root.t("urgency." + v) } })
         }
-        SettingChoice {
+        BoundChoice {
           key: "notifyGroupThreshold"
           numeric: true
           label: root.t("settings.notifyGroupThreshold")
@@ -1418,27 +1512,27 @@ Panel {
         // -------- defaults
         PanelSeparator { foreground: root.foreground }
         PanelSectionHeader { text: root.t("settings.defaults"); foreground: root.foreground; fontFamily: root.fontFamily }
-        SettingChoice {
+        BoundChoice {
           key: "defaultFilter"
           label: root.t("settings.defaultFilter")
           options: Seerr.FILTERS.map(function(f) { return { value: f, label: root.t("filter." + f) } })
         }
-        SettingChoice {
+        BoundChoice {
           key: "defaultMediaType"
           label: root.t("settings.defaultMediaType")
           options: Seerr.MEDIA_TYPES.map(function(f) { return { value: f, label: root.t("mediaType." + f) } })
         }
-        SettingChoice {
+        BoundChoice {
           key: "defaultSort"
           label: root.t("settings.defaultSort")
           options: Seerr.SORTS.map(function(f) { return { value: f, label: root.t("sort." + f) } })
         }
-        SettingChoice {
+        BoundChoice {
           key: "defaultSortDirection"
           label: root.t("settings.defaultSortDirection")
           options: Seerr.DIRECTIONS.map(function(f) { return { value: f, label: root.t("sort." + f) } })
         }
-        SettingChoice {
+        BoundChoice {
           key: "pageSize"
           numeric: true
           label: root.t("settings.pageSize")
@@ -1448,8 +1542,8 @@ Panel {
         // -------- display
         PanelSeparator { foreground: root.foreground }
         PanelSectionHeader { text: root.t("settings.display"); foreground: root.foreground; fontFamily: root.fontFamily }
-        SettingToggle { key: "showPosters"; label: root.t("settings.showPosters"); description: root.t("settings.showPostersHelp") }
-        SettingToggle { key: "confirmDecline"; label: root.t("settings.confirmDecline") }
+        BoundToggle { key: "showPosters"; label: root.t("settings.showPosters"); description: root.t("settings.showPostersHelp") }
+        BoundToggle { key: "confirmDecline"; label: root.t("settings.confirmDecline") }
       }
     }
 
@@ -1461,50 +1555,24 @@ Panel {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       text: root.t("settings.keys")
+      tone: root.dim
+      fontFamily: root.fontFamily
     }
   }
 
-  // The kit's Dropdown assigns `value` itself when an option is picked, which
-  // cuts a `value:` binding: the dropdown would then go on showing that pick
-  // after the state changes elsewhere (f/t keys, a server change resetting
-  // the profile, IPC `set`). Bind `current` instead; it is pushed to `value`
-  // on every change, and again after a pick, in case the pick was refused.
-  component SyncedDropdown: Dropdown {
-    id: synced
-    property string current: ""
-    value: current
-    onCurrentChanged: value = current
-    Connections {
-      target: synced
-      function onChanged(v) { Qt.callLater(function() { synced.value = synced.current }) }
-    }
-  }
-
-  component SettingToggle: Toggle {
-    property string key: ""
-    width: parent ? parent.width : 0
-    checked: root.cfg[key] === true
+  // The settings page's controls, bound to the panel's settings and theme.
+  component BoundToggle: SettingToggle {
+    values: root.cfg
     foreground: root.foreground
     fontFamily: root.fontFamily
-    onClicked: {
-      var patch = {}
-      patch[key] = !checked
-      root.saveSetting(patch)
-    }
+    onSave: function(patch) { root.saveSetting(patch) }
   }
 
-  component SettingChoice: SyncedDropdown {
-    property string key: ""
-    property bool numeric: false
-    width: parent ? parent.width : 0
-    current: String(root.cfg[key])
+  component BoundChoice: SettingChoice {
+    values: root.cfg
     foreground: root.foreground
     fontFamily: root.fontFamily
-    onChanged: function(v) {
-      var patch = {}
-      patch[key] = numeric ? parseInt(v, 10) : v
-      root.saveSetting(patch)
-    }
+    onSave: function(patch) { root.saveSetting(patch) }
   }
 
   // ================================================================ parts
@@ -1542,604 +1610,5 @@ Panel {
       days: function(n) { return tn("time.days", n) },
       date: function(v) { return new Date(v).toLocaleDateString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat) }
     })
-  }
-
-  component RequestRow: CursorSurface {
-    id: row
-    property var req: null
-    property int rowIndex: 0
-    readonly property var media: req && root.svc ? (root.svc.mediaRevision, root.svc.mediaFor(req)) : null
-    readonly property string status: Seerr.statusKey(req)
-    readonly property bool busy: !!req && !!root.svc && root.svc.isBusy(req.id)
-    readonly property bool actionable: !!req && req.status === Seerr.REQUEST_PENDING && !!root.svc && root.svc.canManage && !root.offline
-
-    // Only while the list itself has the keyboard (or under the mouse), so
-    // a focused filter or search field is not shown alongside a lit row.
-    hasCursor: root.cursor === rowIndex && (root.listFocused || rowMouse.containsMouse)
-    foreground: root.foreground
-    implicitHeight: Math.max(root.cfg.showPosters ? Style.space(54) : 0, rowContent.implicitHeight) + Style.space(10)
-
-    MouseArea {
-      id: rowMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onEntered: root.cursor = row.rowIndex
-      onClicked: root.openDetail(row.req)
-    }
-
-    RowLayout {
-      anchors.fill: parent
-      anchors.leftMargin: Style.space(6)
-      anchors.rightMargin: Style.space(6)
-      spacing: Style.space(10)
-
-      Poster {
-        visible: root.cfg.showPosters
-        Layout.preferredWidth: Style.space(36)
-        Layout.preferredHeight: Style.space(54)
-        Layout.alignment: Qt.AlignVCenter
-        path: row.media ? row.media.posterPath : ""
-        size: "w92"
-        type: row.req ? row.req.type : "movie"
-      }
-
-      ColumnLayout {
-        id: rowContent
-        Layout.fillWidth: true
-        Layout.alignment: Qt.AlignVCenter
-        spacing: Style.space(3)
-        // The title gets all the room the year and the 4K tag leave, and is
-        // only cut when it really does not fit; the year always shows.
-        Item {
-          id: titleLine
-          Layout.fillWidth: true
-          implicitHeight: rowTitle.implicitHeight
-          readonly property real tail: (rowYear.visible ? rowYear.implicitWidth + Style.space(6) : 0)
-                                     + (row4k.visible ? row4k.implicitWidth + Style.space(6) : 0)
-          PlainText {
-            id: rowTitle
-            width: Math.min(implicitWidth, titleLine.width - titleLine.tail)
-            text: row.req && root.svc ? root.svc.nameFor(row.req) : ""
-            elide: Text.ElideRight
-          }
-          PlainText {
-            id: rowYear
-            x: rowTitle.width + Style.space(6)
-            visible: text !== ""
-            text: row.req && root.svc ? (root.svc.mediaRevision, root.svc.yearFor(row.req)) : ""
-            color: root.dim
-          }
-          Tag {
-            id: row4k
-            x: rowTitle.width + Style.space(6) + (rowYear.visible ? rowYear.implicitWidth + Style.space(6) : 0)
-            anchors.verticalCenter: rowTitle.verticalCenter
-            visible: !!row.req && row.req.is4k
-            text: "4K"
-            tone: root.dim
-            fontFamily: root.fontFamily
-          }
-        }
-        PlainText {
-          Layout.fillWidth: true
-          color: root.dim
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
-          text: {
-            var r = row.req
-            if (!r) return ""
-            var parts = [(r.type === "tv" ? root.gTv + " " + root.t("type.tv") : root.gMovie + " " + root.t("type.movie"))]
-            if (r.type === "tv" && r.seasons.length) parts.push(root.t("detail.seasonsShort").arg(Seerr.seasonsLabel(r.seasons)))
-            if (r.requestedBy) parts.push(r.requestedBy.name)
-            parts.push(root.age(root.svc && root.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
-            return parts.join(" · ")
-          }
-        }
-      }
-
-      StatusBadge {
-        visible: !row.actionable
-        Layout.alignment: Qt.AlignVCenter
-        status: row.status
-        compact: true
-      }
-      IconButton {
-        visible: row.actionable
-        Layout.alignment: Qt.AlignVCenter
-        glyph: root.gCheck
-        color: root.accent
-        busy: row.busy
-        tooltip: root.t("action.approve") + "  (a)\n" + root.t("hint.shiftApprove")
-        onActivated: function(mods) { root.approve(row.req, (mods & Qt.ShiftModifier) !== 0) }
-      }
-      IconButton {
-        visible: row.actionable
-        Layout.alignment: Qt.AlignVCenter
-        glyph: root.gClose
-        color: root.urgent
-        busy: row.busy
-        tooltip: root.t("action.decline") + "  (d)"
-        onActivated: root.decline(row.req)
-      }
-    }
-  }
-
-  component TopBar: RowLayout {
-    id: topBar
-    property string title: ""
-    property string subtitle: ""
-    property bool subtitleUrgent: false
-    property bool subtitleClickable: false
-    property string subtitleTooltip: ""
-    signal subtitleClicked()
-    property bool showBack: false
-    default property alias actions: actionRow.data
-    spacing: Style.space(8)
-
-    IconButton {
-      visible: topBar.showBack
-      glyph: root.gBack
-      tooltip: root.t("action.back") + "  (Esc)"
-      Layout.alignment: Qt.AlignVCenter
-      onActivated: root.back()
-    }
-    PlainText {
-      visible: !topBar.showBack
-      text: root.gSeerr
-      font.pixelSize: Style.font.display
-      Layout.alignment: Qt.AlignVCenter
-    }
-    ColumnLayout {
-      Layout.fillWidth: true
-      spacing: Style.space(1)
-      PlainText {
-        Layout.fillWidth: true
-        text: topBar.title
-        font.pixelSize: Style.font.title
-        font.bold: true
-        elide: Text.ElideRight
-      }
-      PlainText {
-        Layout.fillWidth: true
-        visible: text !== ""
-        text: topBar.subtitle
-        color: topBar.subtitleUrgent ? root.urgent : (subMouse.containsMouse && topBar.subtitleClickable ? root.accent : root.dim)
-        font.pixelSize: Style.font.caption
-        font.underline: subMouse.containsMouse && topBar.subtitleClickable
-        elide: Text.ElideRight
-        MouseArea {
-          id: subMouse
-          width: Math.min(parent.width, parent.implicitWidth)
-          height: parent.height
-          enabled: topBar.subtitleClickable
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: topBar.subtitleClicked()
-        }
-        PanelToolTip { visible: subMouse.containsMouse && topBar.subtitleClickable && topBar.subtitleTooltip !== ""; text: topBar.subtitleTooltip; fontFamily: root.fontFamily }
-      }
-    }
-    Row {
-      id: actionRow
-      spacing: Style.space(2)
-      Layout.alignment: Qt.AlignVCenter
-    }
-  }
-
-  component Poster: Rectangle {
-    id: poster
-    property string path: ""
-    property string size: "w92"
-    property string type: "movie"
-    readonly property string url: root.cfg.showPosters ? Seerr.posterUrl(path, size) : ""
-    color: Util.alpha(root.foreground, 0.06)
-    radius: Style.cornerRadius
-    clip: true
-    PlainText {
-      anchors.centerIn: parent
-      visible: image.status !== Image.Ready
-      text: poster.type === "tv" ? root.gTv : root.gMovie
-      color: root.dim
-      font.pixelSize: Math.round(poster.width * 0.4)
-    }
-    Image {
-      id: image
-      anchors.fill: parent
-      source: poster.url
-      asynchronous: true
-      cache: true
-      fillMode: Image.PreserveAspectCrop
-      sourceSize.width: poster.width * 2
-      sourceSize.height: poster.height * 2
-      opacity: status === Image.Ready ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic } }
-    }
-  }
-
-  // A status as an icon and a word; `compact` uses the short word, for the
-  // list, where the title needs the room.
-  component StatusBadge: Rectangle {
-    id: badge
-    property string status: "unknown"
-    property bool compact: false
-    readonly property color tone: root.statusColor(status)
-    implicitWidth: badgeRow.implicitWidth + Style.space(12)
-    implicitHeight: badgeRow.implicitHeight + Style.space(4)
-    radius: height / 2
-    color: Util.alpha(tone, 0.14)
-    border.width: 1
-    border.color: Util.alpha(tone, 0.5)
-    Behavior on color { ColorAnimation { duration: Style.duration(250) } }
-    Row {
-      id: badgeRow
-      anchors.centerIn: parent
-      spacing: Style.space(4)
-      PlainText {
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.statusGlyph(badge.status)
-        color: badge.tone
-        font.pixelSize: Style.font.caption
-      }
-      PlainText {
-        anchors.verticalCenter: parent.verticalCenter
-        text: badge.compact ? root.t("statusShort." + badge.status) : root.t("status." + badge.status)
-        color: badge.tone
-        font.pixelSize: Style.font.caption
-      }
-    }
-  }
-
-  // Keyboard shortcuts as "key label · key label …" (the translation's
-  // format): each pair is laid out as one unbreakable cap + label, so a line
-  // only ever wraps between shortcuts, never inside one. Lines are centred
-  // and balanced: as few as fit, with widths as even as possible.
-  component KeyHints: Item {
-    id: hints
-    property string text: ""
-    readonly property var entries: text.split(" · ").map(function(part) {
-      var cut = part.indexOf(" ")
-      return cut < 0 ? { keys: part, label: "" } : { keys: part.slice(0, cut), label: part.slice(cut + 1) }
-    })
-    readonly property real hGap: Style.space(8)
-    readonly property real vGap: Style.space(4)
-    implicitHeight: 0
-
-    function items() {
-      var out = []
-      for (var i = 0; i < pairs.count; i++) {
-        var it = pairs.itemAt(i)
-        if (it) out.push(it)
-      }
-      return out
-    }
-    // Greedy wrap at `limit`: arrays of items per line.
-    function wrap(list, limit) {
-      var lines = [], line = [], used = 0
-      for (var i = 0; i < list.length; i++) {
-        var w = list[i].implicitWidth
-        if (line.length && used + hGap + w > limit) { lines.push(line); line = []; used = 0 }
-        used += (line.length ? hGap : 0) + w
-        line.push(list[i])
-      }
-      if (line.length) lines.push(line)
-      return lines
-    }
-    function relayout() {
-      var list = items()
-      if (!list.length || width <= 0) { implicitHeight = 0; return }
-      var count = wrap(list, width).length
-      // Narrowest limit that keeps the same number of lines.
-      var lo = 0, hi = width
-      for (var i = 0; i < list.length; i++) lo = Math.max(lo, list[i].implicitWidth)
-      while (hi - lo > 1) {
-        var mid = (lo + hi) / 2
-        if (wrap(list, mid).length <= count) hi = mid; else lo = mid
-      }
-      var lines = wrap(list, Math.min(hi, width)), y = 0
-      for (var l = 0; l < lines.length; l++) {
-        var row = lines[l], total = 0, tall = 0
-        for (var j = 0; j < row.length; j++) { total += row[j].implicitWidth; tall = Math.max(tall, row[j].implicitHeight) }
-        total += hGap * (row.length - 1)
-        var x = Math.max(0, (width - total) / 2)
-        for (var k = 0; k < row.length; k++) {
-          row[k].x = Math.round(x)
-          row[k].y = Math.round(y + (tall - row[k].implicitHeight) / 2)
-          x += row[k].implicitWidth + hGap
-        }
-        y += tall + (l < lines.length - 1 ? vGap : 0)
-      }
-      implicitHeight = y
-    }
-    onWidthChanged: Qt.callLater(relayout)
-
-    Repeater {
-      id: pairs
-      model: hints.entries
-      onItemAdded: Qt.callLater(hints.relayout)
-      onItemRemoved: Qt.callLater(hints.relayout)
-      Row {
-        required property var modelData
-        spacing: Style.space(3)
-        onImplicitWidthChanged: Qt.callLater(hints.relayout)
-        Tag {
-          anchors.verticalCenter: parent.verticalCenter
-          text: modelData.keys
-          tone: root.dim
-          fontFamily: root.fontFamily
-        }
-        PlainText {
-          anchors.verticalCenter: parent.verticalCenter
-          text: modelData.label
-          color: root.dim
-          font.pixelSize: Style.font.caption
-        }
-      }
-    }
-  }
-
-  component Chip: Rectangle {
-    id: chip
-    property string label: ""
-    property string tooltip: ""
-    property bool selected: false
-    signal activated()
-    implicitWidth: chipLabel.implicitWidth + Style.space(16)
-    implicitHeight: chipLabel.implicitHeight + Style.space(8)
-    radius: height / 2
-    color: selected ? Util.alpha(root.accent, 0.2) : (chipMouse.containsMouse || activeFocus ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
-    border.width: activeFocus ? 2 : 1
-    border.color: selected || activeFocus ? root.accent : Util.alpha(root.foreground, 0.3)
-    // Space ticks it; Enter is left to the form (approve).
-    activeFocusOnTab: true
-    Keys.onSpacePressed: chip.activated()
-    PlainText {
-      id: chipLabel
-      anchors.centerIn: parent
-      text: (chip.selected ? root.gCheck + " " : "") + chip.label
-      color: chip.selected ? root.accent : root.foreground
-      font.pixelSize: Style.font.bodySmall
-    }
-    MouseArea {
-      id: chipMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: chip.activated()
-    }
-    PanelToolTip { visible: chipMouse.containsMouse && chip.tooltip !== ""; text: chip.tooltip; fontFamily: root.fontFamily }
-  }
-
-  // A glyph button that reports the modifiers held, so Shift+click can mean
-  // "approve with defaults".
-  component IconButton: Item {
-    id: ib
-    property string glyph: ""
-    property string tooltip: ""
-    property color color: root.foreground
-    property bool busy: false
-    // Turns while something it started is under way (refresh).
-    property bool spinning: false
-    signal activated(int modifiers)
-    implicitWidth: Style.space(26)
-    implicitHeight: Style.space(26)
-    opacity: enabled ? (busy ? 0.45 : 1) : 0.35
-    Rectangle {
-      anchors.fill: parent
-      radius: Style.cornerRadius
-      color: ibMouse.containsMouse && ib.enabled && !ib.busy ? Style.hoverFillFor(root.foreground, root.accent) : "transparent"
-    }
-    PlainText {
-      id: ibGlyph
-      anchors.centerIn: parent
-      text: ib.glyph
-      color: ib.color
-      font.pixelSize: Style.font.icon
-      RotationAnimator on rotation {
-        running: ib.spinning
-        from: 0; to: 360
-        duration: 900
-        loops: Animation.Infinite
-        onRunningChanged: if (!running) ibGlyph.rotation = 0
-      }
-    }
-    MouseArea {
-      id: ibMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: ib.enabled && !ib.busy ? Qt.PointingHandCursor : Qt.ArrowCursor
-      onClicked: function(mouse) { if (ib.enabled && !ib.busy) ib.activated(mouse.modifiers) }
-    }
-    PanelToolTip { visible: ibMouse.containsMouse && ib.tooltip !== ""; text: ib.tooltip; fontFamily: root.fontFamily }
-  }
-
-  component ActionButton: Rectangle {
-    id: ab
-    property string label: ""
-    property string glyph: ""
-    property string tooltip: ""
-    property bool primary: false
-    property bool danger: false
-    property bool busy: false
-    signal activated(int modifiers)
-    readonly property color tone: danger ? root.urgent : (primary ? root.accent : root.foreground)
-    implicitWidth: abRow.implicitWidth + Style.space(20)
-    implicitHeight: Style.spacing.controlHeight
-    radius: Style.cornerRadius
-    opacity: enabled ? (busy ? 0.5 : 1) : 0.4
-    color: (abMouse.containsMouse || activeFocus) && enabled && !busy ? Util.alpha(tone, 0.18) : (primary ? Util.alpha(tone, 0.1) : "transparent")
-    border.width: activeFocus ? 2 : 1
-    border.color: activeFocus ? tone : Util.alpha(tone, primary || danger ? 0.7 : 0.35)
-    activeFocusOnTab: true
-    Keys.onPressed: function(event) {
-      if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Space) return
-      if (ab.enabled && !ab.busy) ab.activated(event.modifiers)
-      event.accepted = true
-    }
-    Row {
-      id: abRow
-      anchors.centerIn: parent
-      spacing: Style.space(6)
-      PlainText { visible: ab.glyph !== ""; text: ab.glyph; color: ab.tone; font.pixelSize: Style.font.icon; anchors.verticalCenter: parent.verticalCenter }
-      PlainText { text: ab.busy ? "…" : ab.label; color: ab.tone; anchors.verticalCenter: parent.verticalCenter }
-    }
-    MouseArea {
-      id: abMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: ab.enabled && !ab.busy ? Qt.PointingHandCursor : Qt.ArrowCursor
-      onClicked: function(mouse) { if (ab.enabled && !ab.busy) ab.activated(mouse.modifiers) }
-    }
-    PanelToolTip { visible: abMouse.containsMouse && ab.tooltip !== ""; text: ab.tooltip; fontFamily: root.fontFamily }
-  }
-
-  component InfoPair: RowLayout {
-    id: pair
-    property string label: ""
-    property string value: ""
-    width: parent ? parent.width : 0
-    spacing: Style.space(8)
-    PlainText { text: pair.label; color: root.dim; font.pixelSize: Style.font.bodySmall }
-    PlainText {
-      Layout.fillWidth: true
-      horizontalAlignment: Text.AlignRight
-      text: pair.value
-      font.pixelSize: Style.font.bodySmall
-      elide: Text.ElideRight
-    }
-  }
-
-  // A page fades in when it is shown.
-  component FadeIn: NumberAnimation {
-    from: 0.35; to: 1
-    duration: Style.duration(140)
-    easing.type: Easing.OutCubic
-    running: target ? target.visible : false
-  }
-
-  // Results and errors, sliding up from the bottom of the panel.
-  component Toast: Rectangle {
-    id: toast
-    readonly property bool shown: root.flashText !== ""
-    readonly property color tone: root.flashError ? root.urgent : root.statusColor("available")
-    // Keeps the last text while it fades out.
-    property string text: ""
-    property bool error: false
-    Connections {
-      target: root
-      function onFlashSerialChanged() { toast.text = root.flashText; toast.error = root.flashError; pop.restart() }
-    }
-    width: Math.min(parent.width - Style.space(24), toastRow.implicitWidth + Style.space(24))
-    height: toastRow.implicitHeight + Style.space(14)
-    radius: Style.cornerRadius
-    color: Commons.Color.background
-    border.width: 1
-    border.color: Util.alpha(tone, 0.7)
-    opacity: shown ? 1 : 0
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: shown ? Style.space(2) : -Style.space(10)
-    visible: opacity > 0
-    Behavior on opacity { NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic } }
-    Behavior on anchors.bottomMargin { NumberAnimation { duration: Style.duration(260); easing.type: Easing.OutBack } }
-    Rectangle {
-      anchors.fill: parent
-      radius: parent.radius
-      color: Util.alpha(toast.tone, 0.12)
-    }
-    RowLayout {
-      id: toastRow
-      anchors.centerIn: parent
-      width: Math.min(implicitWidth, toast.parent.width - Style.space(48))
-      spacing: Style.space(8)
-      PlainText {
-        id: toastIcon
-        text: toast.error ? root.gAlert : root.gCheck
-        color: toast.tone
-        font.pixelSize: Style.font.icon
-        Layout.alignment: Qt.AlignTop
-        // A small bounce each time a new message arrives.
-        SequentialAnimation on scale {
-          id: pop
-          running: false
-          NumberAnimation { from: 0.4; to: 1.25; duration: Style.duration(160); easing.type: Easing.OutCubic }
-          NumberAnimation { to: 1; duration: Style.duration(140); easing.type: Easing.InOutQuad }
-        }
-      }
-      PlainText {
-        Layout.fillWidth: true
-        Layout.maximumWidth: toast.parent ? toast.parent.width - Style.space(80) : 300
-        text: toast.text
-        font.pixelSize: Style.font.bodySmall
-        wrapMode: Text.WordWrap
-      }
-    }
-  }
-
-  // Shown above stale rows while Seerr does not answer.
-  component OfflineBanner: Rectangle {
-    id: banner
-    implicitHeight: bannerRow.implicitHeight + Style.space(12)
-    radius: Style.cornerRadius
-    color: Util.alpha(root.retrying ? root.dim : root.urgent, 0.12)
-    border.width: 1
-    border.color: Util.alpha(root.retrying ? root.dim : root.urgent, 0.5)
-    RowLayout {
-      id: bannerRow
-      anchors.fill: parent
-      anchors.leftMargin: Style.space(10)
-      anchors.rightMargin: Style.space(6)
-      spacing: Style.space(8)
-      PlainText {
-        text: root.gWarning
-        color: root.retrying ? root.dim : root.urgent
-        Layout.alignment: Qt.AlignVCenter
-      }
-      ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Style.space(1)
-        PlainText {
-          Layout.fillWidth: true
-          text: root.svc && root.svc.lastOkAt > 0
-            ? root.t("list.offlineSince").arg(new Date(root.svc.lastOkAt).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat))
-            : root.t("list.offlineTitle")
-          font.pixelSize: Style.font.bodySmall
-          font.bold: true
-          elide: Text.ElideRight
-        }
-        PlainText {
-          Layout.fillWidth: true
-          text: root.svc ? root.svc.lastError : ""
-          color: root.dim
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
-        }
-      }
-      ActionButton {
-        Layout.alignment: Qt.AlignVCenter
-        label: root.t("action.retry")
-        glyph: root.gRetry
-        busy: root.retrying
-        onActivated: root.svc.refresh()
-      }
-    }
-  }
-
-  component FieldLabel: PlainText {
-    color: root.dim
-    font.pixelSize: Style.font.bodySmall
-  }
-
-  component Hint: PlainText {
-    color: root.dim
-    font.pixelSize: Style.font.bodySmall
-    wrapMode: Text.WordWrap
-  }
-
-  // Every string this panel shows may come from Seerr: never rich text.
-  component PlainText: Text {
-    textFormat: Text.PlainText
-    color: root.foreground
-    font.family: root.fontFamily
-    font.pixelSize: Style.font.body
   }
 }
