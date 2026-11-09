@@ -60,13 +60,12 @@ Item {
   // ---------------------------------------------------------------- state
 
   // "unconfigured" | "connecting" | "connected" | "error"
-  property string connection: "unconfigured"
-  property string lastError: ""
-  // When Seerr last answered, so an outage can say since when.
-  property double lastOkAt: 0
-  property var me: null
-  property bool canManage: true
-  property var counts: Seerr.normalizeCounts(null)
+  readonly property alias connection: conn.state
+  readonly property alias lastError: conn.lastError
+  readonly property alias lastOkAt: conn.lastOkAt
+  readonly property alias me: conn.me
+  readonly property alias canManage: conn.canManage
+  readonly property alias counts: poller.counts
   readonly property int pendingCount: counts.pending
 
   // "loading" | "missing" | "ok" | "error"
@@ -140,7 +139,7 @@ Item {
     keyring.load()
   }
 
-  onBaseUrlChanged: reconnect()
+  onBaseUrlChanged: conn.reconnect()
   // Another server: its key, or none, never the previous one's.
   onKeyOriginChanged: keyring.load()
 
@@ -175,22 +174,12 @@ Item {
     }
   }
 
-  // `retry` is a new attempt at the same server after an error: what was
-  // already shown stays (greyed by the panel) instead of going blank.
-  function reconnect(retry) {
-    http.reset()
-    _polling = false
-    listLoading = false
-    busy = ({})
-    if (retry === true && connection === "error" && keyring.matches(baseUrl)) {
-      connection = "connecting"
-      api("GET", "/auth/me", null, root.onAuthAnswer)
-      return
-    }
+  // What Connection clears when it starts over.
+  function stopLoading() { listLoading = false }
+  function clearBusy() { busy = ({}) }
+  function clear() {
     _known = ({})
     knownRevision++
-    me = null
-    counts = Seerr.normalizeCounts(null)
     rows = []
     rowsTotal = 0
     _listSkip = 0
@@ -199,60 +188,17 @@ Item {
     // The calls these waited on were just dropped and will never answer;
     // left in place, they would keep their media from ever loading again.
     _mediaWaiters = ({})
-    // Another server has other Radarr/Sonarr servers, profiles and folders.
-    _servers = ({})
-    _serverDetails = ({})
-    if (!keyring.matches(baseUrl)) {
-      connection = "unconfigured"
-      lastError = ""
-      return
-    }
-    connection = "connecting"
-    lastError = ""
-    lastOkAt = 0
-    api("GET", "/auth/me", null, root.onAuthAnswer)
   }
 
-  function onAuthAnswer(res) {
-    if (!res.ok) { fail(res); return }
-    me = Seerr.normalizeUser(res.data)
-    var perms = res.data && typeof res.data.permissions === "number" ? res.data.permissions : 0
-    // ADMIN (2) or MANAGE_REQUESTS (16).
-    canManage = (perms & 2) !== 0 || (perms & 16) !== 0
-    connection = "connected"
-    lastError = ""
-    lastOkAt = Date.now()
-    poll()
-    if (openPanels > 0) reloadList()
-  }
-
-  function fail(res) {
-    connection = "error"
-    lastError = describeError(res)
-  }
-
-  function describeError(res) {
-    if (!res) return t("error.unknown")
-    if (res.error === "notConfigured") return t("error.notConfigured")
-    if (res.error === "timeout") return t("error.timeout")
-    if (res.error === "network") return t("error.network")
-    if (res.error === "badJson" || res.error === "tooLarge") return t("error.badResponse")
-    if (res.error === "tls") return t("error.tls")
-    if (res.error === "notPending") return t("error.conflict")
-    if (res.error === "otherServer") return t("error.otherServer")
-    if (res.error === "redirect") return res.location ? t("error.redirectTo").arg(res.location) : t("error.redirect")
-    if (res.status === 401 || res.status === 403) return t("error.unauthorized")
-    if (res.status === 404) return t("error.notFound")
-    if (res.status === 409) return res.message || t("error.conflict")
-    return res.message ? res.message : t("error.http").arg(res.status)
-  }
+  function reconnect(retry) { conn.reconnect(retry) }
+  function describeError(res) { return conn.describeError(res) }
 
   // ---------------------------------------------------------------- modules
 
   Keyring {
     id: keyring
     svc: root
-    onLoaded: root.reconnect()
+    onLoaded: conn.reconnect()
   }
 
   Http {
@@ -263,7 +209,7 @@ Item {
 
   StateFile {
     id: stateFile
-    onRead: root.poll()
+    onRead: poller.poll()
   }
 
   Notifier {
@@ -275,94 +221,41 @@ Item {
     postersReady: stateFile.dirsReady
   }
 
+  Connection {
+    id: conn
+    svc: root
+    http: http
+    keyring: keyring
+    poller: poller
+    store: root
+    actions: root
+    servers: servers
+  }
+
+  Poller {
+    id: poller
+    svc: root
+    http: http
+    conn: conn
+    store: root
+    stateFile: stateFile
+    onArrived: function(requests) { notifier.announceArrivals(requests) }
+    onStatusReached: function(request, statusKey) { notifier.announceStatus(request, statusKey) }
+  }
+
+  ArrServers {
+    id: servers
+    http: http
+    conn: conn
+  }
+
   function api(method, path, body, cb) { http.api(method, path, body, cb) }
   function storeKey(key) { return keyring.store(key) }
   function clearKey() { keyring.clear() }
   function loadKey() { keyring.load() }
 
-  // ---------------------------------------------------------------- polling
-
-  Timer {
-    id: pollTimer
-    interval: root.settings.refreshIntervalSec * 1000
-    repeat: true
-    running: root.connection === "connected" || root.connection === "error"
-    onTriggered: {
-      if (root.connection === "error") root.reconnect(true)
-      else root.poll()
-    }
-  }
-
-  property bool _polling: false
-
-  function refresh() {
-    if (connection !== "connected") { reconnect(true); return }
-    poll()
-    if (openPanels > 0) reloadList()
-  }
-
-  function poll() {
-    if (connection !== "connected" || _polling) return
-    _polling = true
-    api("GET", "/request/count", null, function(res) {
-      if (!res.ok) { root._polling = false; root.fail(res); return }
-      root.counts = Seerr.normalizeCounts(res.data)
-      root.lastOkAt = Date.now()
-      root.pollPending()
-    })
-  }
-
-  function pollPending() {
-    api("GET", Seerr.listPath({ filter: "pending", take: 50, skip: 0, sort: "added", sortDirection: "desc", mediaType: "all" }), null, function(res) {
-      if (!res.ok) { root._polling = false; root.fail(res); return }
-      var pending = Seerr.normalizeRequestList(res.data).requests
-      root.handlePending(pending)
-      // Before the saved state is read, comparing statuses (and saving them)
-      // would write over it.
-      if (root.settings.notifyStatusChanges && stateFile.loaded) root.pollStatuses()
-      else {
-        root._polling = false
-        if (root.openPanels > 0) root.refreshListQuietly()
-      }
-    })
-  }
-
-  function pollStatuses() {
-    api("GET", Seerr.listPath({ filter: "all", take: 50, skip: 0, sort: "modified", sortDirection: "desc", mediaType: "all" }), null, function(res) {
-      root._polling = false
-      if (!res.ok) { root.fail(res); return }
-      var recent = Seerr.normalizeRequestList(res.data).requests
-      var changes = Seerr.statusChanges(stateFile.state.statuses, recent)
-      var next = Seerr.statusMap(recent)
-      var st = stateFile.state
-      stateFile.state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed }
-      stateFile.save()
-      if (st.primed) {
-        for (var i = 0; i < changes.length; i++) {
-          var req = null
-          for (var j = 0; j < recent.length; j++) if (recent[j].id === changes[i].id) req = recent[j]
-          if (req) notifier.announceStatus(req, changes[i].to)
-        }
-      }
-      if (root.openPanels > 0) root.refreshListQuietly()
-    })
-  }
-
-  function handlePending(pending) {
-    if (!stateFile.loaded) return
-    var st = stateFile.state
-    var firstRun = !st.primed || st.url !== baseUrl
-    var fresh = Seerr.newRequestIds(firstRun ? [] : st.seen, pending)
-    var seen = Seerr.rememberIds(firstRun ? [] : st.seen, pending.map(function(r) { return r.id }))
-    stateFile.state = { url: baseUrl, seen: seen, statuses: firstRun ? Seerr.statusMap(pending) : st.statuses, primed: true }
-    stateFile.save()
-    // Requests already pending on a first connection to a server were not
-    // missed: they are only recorded as seen.
-    if (firstRun) return
-    var announce = pending.filter(function(r) { return fresh.indexOf(r.id) !== -1 })
-    if (announce.length === 0) return
-    notifier.announceArrivals(announce)
-  }
+  function refresh() { poller.refresh() }
+  function poll() { poller.poll() }
 
   // ---------------------------------------------------------------- list
 
@@ -652,40 +545,9 @@ Item {
     return true
   }
 
-  // ---------------------------------------------------------------- services
-
-  property var _servers: ({})
-  property var _serverDetails: ({})
-  readonly property int serviceCacheMs: 5 * 60 * 1000
-
-  function serviceType(req) { return req && req.type === "tv" ? "sonarr" : "radarr" }
-
-  function loadServers(type, cb) {
-    var cached = _servers[type]
-    if (cached && Date.now() - cached.at < serviceCacheMs) { cb(cached.value, null); return }
-    api("GET", "/service/" + type, null, function(res) {
-      if (!res.ok) { cb(null, root.describeError(res)); return }
-      var value = Seerr.normalizeServers(res.data)
-      var next = root._servers
-      next[type] = { at: Date.now(), value: value }
-      root._servers = next
-      cb(value, null)
-    })
-  }
-
-  function loadServerDetails(type, serverId, cb) {
-    var key = type + ":" + serverId
-    var cached = _serverDetails[key]
-    if (cached && Date.now() - cached.at < serviceCacheMs) { cb(cached.value, null); return }
-    api("GET", "/service/" + type + "/" + serverId, null, function(res) {
-      if (!res.ok) { cb(null, root.describeError(res)); return }
-      var value = Seerr.normalizeServerDetails(res.data)
-      var next = root._serverDetails
-      next[key] = { at: Date.now(), value: value }
-      root._serverDetails = next
-      cb(value, null)
-    })
-  }
+  function serviceType(req) { return servers.serviceType(req) }
+  function loadServers(type, cb) { servers.loadServers(type, cb) }
+  function loadServerDetails(type, serverId, cb) { servers.loadServerDetails(type, serverId, cb) }
 
   // ---------------------------------------------------------------- IPC
 
