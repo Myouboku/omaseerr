@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "myouboku.omaseerr",
   "name": "OmaSeerr",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "myouboku",
   "license": "MIT",
   "description": "Seerr media requests in the Omarchy bar: review, approve and decline requests, with actionable notifications.",
