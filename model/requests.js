@@ -81,6 +81,42 @@ function matchesView(req, view, media) {
   return true
 }
 
+// The value after `current` in `values` (before it when `backwards`), going
+// round. An unknown current value counts as sitting just before the first.
+function nextValue(values, current, backwards) {
+  var at = values.indexOf(current)
+  return values[(at + (backwards ? values.length - 1 : 1)) % values.length]
+}
+
+// Sort and order offered as one choice ("added:desc", "Newest"), every sort
+// with every direction.
+function sortChoices() {
+  var out = []
+  for (var i = 0; i < SORTS.length; i++)
+    for (var j = 0; j < DIRECTIONS.length; j++)
+      out.push({ value: SORTS[i] + ":" + DIRECTIONS[j], sort: SORTS[i], direction: DIRECTIONS[j] })
+  return out
+}
+
+// The combined choice a view is on, and the view patch a choice stands for.
+function sortChoice(view) {
+  return view ? view.sort + ":" + view.sortDirection : "added:desc"
+}
+
+function sortPatch(choice) {
+  var parts = String(choice).split(":")
+  return { sort: parts[0], sortDirection: parts[1] }
+}
+
+// What to say about a loaded view that shows nothing (a translation key; the
+// no-match one takes the search as %1).
+function emptyListKey(view) {
+  if (view.search) return "list.noMatch"
+  if (view.filter === "pending" && view.mediaType === "all") return "list.nothingPending"
+  if (view.filter === "all" && view.mediaType === "all") return "list.noRequests"
+  return "list.emptyFilter"
+}
+
 // Keeps the server's order (it already sorted), merging a fresh page into the
 // rows already shown without duplicates.
 function mergePage(existing, page) {

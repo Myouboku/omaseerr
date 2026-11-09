@@ -13,3 +13,24 @@ test("relativeTime", () => {
   eq(Time.relativeTime(now - 90 * 86400e3, now, words), "date")
   eq(Time.relativeTime(0, now, words), "")
 })
+
+test("relativeTime edges and default now", () => {
+  const words = { now: "now", minutes: n => n + "m", hours: n => n + "h", days: n => n + "d", date: () => "date" }
+  const now = Date.parse("2026-11-08T12:00:00Z")
+  eq(Time.relativeTime(now - 60e3, now, words), "1m")
+  eq(Time.relativeTime(now - 3600e3 + 1, now, words), "59m")
+  eq(Time.relativeTime(now - 86400e3, now, words), "1d")
+  eq(Time.relativeTime(now - 30 * 86400e3 + 1, now, words), "29d")
+  eq(Time.relativeTime(now - 30 * 86400e3, now, words), "date")
+  // In the future (a clock ahead of ours): "now", not a negative age.
+  eq(Time.relativeTime(now + 3600e3, now, words), "now")
+  eq(Time.relativeTime(Date.now() - 5 * 60e3, 0, words), "5m")
+})
+
+test("shortDatePattern leaves the year out for this year", () => {
+  const now = new Date(2026, 10, 9, 12).getTime()
+  eq(Time.shortDatePattern(new Date(2026, 0, 1, 0, 1).getTime(), now), "d MMM")
+  eq(Time.shortDatePattern(new Date(2026, 11, 31, 23, 59).getTime(), now), "d MMM")
+  eq(Time.shortDatePattern(new Date(2025, 11, 31, 23, 59).getTime(), now), "d MMM yyyy")
+  eq(Time.shortDatePattern(new Date(2027, 0, 1).getTime(), now), "d MMM yyyy")
+})

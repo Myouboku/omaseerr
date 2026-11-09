@@ -104,22 +104,13 @@ Item {
         Layout.preferredWidth: 1
         showLabel: false
         // Sort and order in one choice, each spelled out ("Newest").
-        current: ctx.svc ? ctx.svc.view.sort + ":" + ctx.svc.view.sortDirection : "added:desc"
-        options: {
-          var out = []
-          for (var i = 0; i < Requests.SORTS.length; i++)
-            for (var j = 0; j < Requests.DIRECTIONS.length; j++) {
-              var k = Requests.SORTS[i] + ":" + Requests.DIRECTIONS[j]
-              out.push({ value: k, label: ctx.t("sortBy." + Requests.SORTS[i] + "." + Requests.DIRECTIONS[j]) })
-            }
-          return out
-        }
+        current: Requests.sortChoice(ctx.svc ? ctx.svc.view : null)
+        options: Requests.sortChoices().map(function(c) { return { value: c.value, label: ctx.t("sortBy." + c.sort + "." + c.direction) } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
         onChanged: function(v) {
-          var parts = v.split(":")
           ctx.nav.cursor = 0
-          ctx.svc.setView({ sort: parts[0], sortDirection: parts[1] })
+          ctx.svc.setView(Requests.sortPatch(v))
         }
       }
     }
@@ -254,10 +245,8 @@ Item {
           if (ctx.svc.listLoading) return ctx.t("list.loading")
           if (ctx.nav.visibleRows.length > 0) return ""
           var v = ctx.svc.view
-          if (v.search) return ctx.t("list.noMatch").arg(v.search)
-          if (v.filter === "pending" && v.mediaType === "all") return ctx.t("list.nothingPending")
-          if (v.filter === "all" && v.mediaType === "all") return ctx.t("list.noRequests")
-          return ctx.t("list.emptyFilter")
+          var empty = Requests.emptyListKey(v)
+          return empty === "list.noMatch" ? ctx.t(empty).arg(v.search) : ctx.t(empty)
         }
         color: ctx.svc && ctx.svc.listError ? ctx.urgent : ctx.dim
         font.family: ctx.fontFamily

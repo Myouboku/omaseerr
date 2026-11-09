@@ -48,3 +48,40 @@ test("seasonsLabel collapses runs", () => {
   eq(Requests.seasonsLabel([4]), "4")
   eq(Requests.seasonsLabel([]), "")
 })
+
+test("nextValue goes round both ways", () => {
+  const v = ["a", "b", "c"]
+  eq(Requests.nextValue(v, "a", false), "b")
+  eq(Requests.nextValue(v, "c", false), "a")
+  eq(Requests.nextValue(v, "a", true), "c")
+  eq(Requests.nextValue(v, "b", true), "a")
+  // An unknown value sits just before the first.
+  eq(Requests.nextValue(v, "zz", false), "a")
+  eq(Requests.nextValue(v, "zz", true), "b")
+  eq(Requests.nextValue(["only"], "only", true), "only")
+})
+
+test("sortChoices pair every sort with every direction", () => {
+  const c = Requests.sortChoices()
+  eq(c.map(x => x.value), ["added:desc", "added:asc", "modified:desc", "modified:asc"])
+  eq(c[2], { value: "modified:desc", sort: "modified", direction: "desc" })
+  eq(c.length, Requests.SORTS.length * Requests.DIRECTIONS.length)
+})
+
+test("sortChoice and sortPatch round-trip a view", () => {
+  eq(Requests.sortChoice({ sort: "modified", sortDirection: "asc", filter: "all" }), "modified:asc")
+  eq(Requests.sortChoice(null), "added:desc")
+  eq(Requests.sortPatch("modified:asc"), { sort: "modified", sortDirection: "asc" })
+  for (const c of Requests.sortChoices()) eq(Requests.sortChoice(Requests.sortPatch(c.value)), c.value)
+})
+
+test("emptyListKey: search first, then the view", () => {
+  const k = (filter, mediaType, search) => Requests.emptyListKey({ filter, mediaType, search })
+  eq(k("pending", "all", "dune"), "list.noMatch")
+  eq(k("all", "tv", "dune"), "list.noMatch")
+  eq(k("pending", "all", ""), "list.nothingPending")
+  eq(k("pending", "movie", ""), "list.emptyFilter")
+  eq(k("all", "all", ""), "list.noRequests")
+  eq(k("all", "tv", ""), "list.emptyFilter")
+  eq(k("declined", "all", undefined), "list.emptyFilter")
+})

@@ -16,3 +16,9 @@ function relativeTime(ms, now, words) {
   return words.date(ms)
 }
 
+// The date pattern of a short date: the year only when it is not this one
+// ("9 Nov" or "9 Nov 2025"), in local time.
+function shortDatePattern(ms, now) {
+  var sameYear = new Date(ms).getFullYear() === new Date(now || Date.now()).getFullYear()
+  return sameYear ? "d MMM" : "d MMM yyyy"
+}

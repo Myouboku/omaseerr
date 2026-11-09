@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
+import "../model/cursor.js" as Cursor
 import "../model/requests.js" as Requests
 import "../model/time.js" as Time
 
@@ -48,7 +49,7 @@ QtObject {
   readonly property bool listFocused: page === "list" && !!ctx.content && ctx.content.activeFocus
 
   function selectedRow() {
-    return visibleRows.length ? visibleRows[Math.max(0, Math.min(cursor, visibleRows.length - 1))] : null
+    return visibleRows.length ? visibleRows[Cursor.clampIndex(cursor, visibleRows.length)] : null
   }
 
   function currentReq() {
@@ -100,24 +101,19 @@ QtObject {
   function moveCursor(dy) {
     if (page === "detail") { stepDetail(dy); return }
     if (page !== "list" || visibleRows.length === 0) return
-    cursor = Math.max(0, Math.min(visibleRows.length - 1, cursor + dy))
+    cursor = Cursor.clampIndex(cursor + dy, visibleRows.length)
     scrollCursorIntoView()
-    if (dy > 0 && cursor >= visibleRows.length - 3 && svc) svc.loadMore()
+    if (Cursor.wantsMore(dy, cursor, visibleRows.length) && svc) svc.loadMore()
   }
 
+  // From a request's details to another one of the list (the cursor
+  // follows), also when the one on display just left the list.
   function stepDetail(dy) {
-    var at = -1
-    for (var i = 0; i < visibleRows.length; i++) if (visibleRows[i].id === detailId) at = i
-    if (visibleRows.length === 0) return
-    var next
-    // Gone from the list (just approved or declined under the pending
-    // filter): the next request now sits where it was, at the cursor.
-    if (at === -1) next = Math.max(0, Math.min(visibleRows.length - 1, dy > 0 ? cursor + dy - 1 : cursor + dy))
-    else next = Math.max(0, Math.min(visibleRows.length - 1, at + dy))
-    if (next === at) return
+    var next = Cursor.stepTarget(visibleRows, detailId, cursor, dy)
+    if (next < 0) return
     cursor = next
     openDetail(visibleRows[next])
-    if (dy > 0 && next >= visibleRows.length - 3 && svc) svc.loadMore()
+    if (Cursor.wantsMore(dy, next, visibleRows.length) && svc) svc.loadMore()
   }
 
   // Keeps the focused control in view when Tab moves to one that is
@@ -127,10 +123,8 @@ QtObject {
     for (var p = item.parent; p; p = p.parent) {
       if (p.contentItem === undefined || p.contentY === undefined || p.flicking === undefined) continue
       var y = item.mapToItem(p.contentItem, 0, 0).y
-      var margin = Style.space(6)
-      if (y < p.contentY) p.contentY = Math.max(0, y - margin)
-      else if (y + item.height > p.contentY + p.height)
-        p.contentY = Math.min(Math.max(0, p.contentHeight - p.height), y + item.height - p.height + margin)
+      var to = Cursor.scrollToShow(p.contentY, p.height, p.contentHeight, y, item.height, Style.space(6))
+      if (to !== p.contentY) p.contentY = to
       return
     }
   }
@@ -142,20 +136,15 @@ QtObject {
     var item = content.rowRepeater.itemAt(cursor)
     if (!item) return
     Qt.callLater(function() {
-      var y = item.y
-      var margin = Style.space(6)
-      if (y < flick.contentY) flick.contentY = Math.max(0, y - margin)
-      else if (y + item.height > flick.contentY + flick.height)
-        flick.contentY = Math.min(Math.max(0, flick.contentHeight - flick.height), y + item.height - flick.height + margin)
+      var to = Cursor.scrollToShow(flick.contentY, flick.height, flick.contentHeight, item.y, item.height, Style.space(6))
+      if (to !== flick.contentY) flick.contentY = to
     })
   }
 
   function cycleView(key, values, backwards) {
     if (!svc) return
-    var at = values.indexOf(svc.view[key])
-    var next = values[(at + (backwards ? values.length - 1 : 1)) % values.length]
     var patch = {}
-    patch[key] = next
+    patch[key] = Requests.nextValue(values, svc.view[key], backwards)
     cursor = 0
     svc.setView(patch)
   }
@@ -296,8 +285,7 @@ QtObject {
     if (!ms) return ""
     var d = new Date(ms)
     var loc = Qt.locale(Commons.I18n.formatLocale)
-    var sameYear = d.getFullYear() === new Date().getFullYear()
-    return d.toLocaleDateString(loc, sameYear ? "d MMM" : "d MMM yyyy") + " " + d.toLocaleTimeString(loc, Locale.ShortFormat)
+    return d.toLocaleDateString(loc, Time.shortDatePattern(ms, Date.now())) + " " + d.toLocaleTimeString(loc, Locale.ShortFormat)
   }
 
   // Compact age for the list: "3 h", "20 min", "2 d".
