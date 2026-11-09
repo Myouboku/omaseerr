@@ -128,6 +128,8 @@ node dev/mock-seerr.js                  # fake Seerr on http://127.0.0.1:5055, k
 node dev/mock-seerr.js --hostile        # plus markup in a title and a user name, and a bad poster path
 curl -X POST 'http://127.0.0.1:5055/__mock/new?type=tv'   # a new pending request
 docker compose -f dev/compose.yaml up -d                  # a real Seerr, Jellyfin, Radarr, Sonarr
+dev/use-mock.sh on [--hostile]          # point the running plugin at a fake Seerr on :5056
+dev/use-mock.sh off                     # back to your own URL; your key never leaves for the mock
 ```
 
 Link the checkout as a plugin with `ln -s "$PWD" ~/.config/omarchy/plugins/myouboku.omaseerr`, then `omarchy plugin enable myouboku.omaseerr --section right`. After changing a QML file, `omarchy restart shell` is the reliable way to reload it: the shell keeps already-compiled QML types in memory.
