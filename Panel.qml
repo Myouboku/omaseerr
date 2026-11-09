@@ -716,12 +716,10 @@ Panel {
           glyph: root.gCog
           onActivated: root.go("settings")
         }
-        Hint {
+        KeyHints {
           width: parent.width
-          horizontalAlignment: Text.AlignHCenter
           visible: root.connected && root.visibleRows.length > 0
           text: root.t("list.keys")
-          font.pixelSize: Style.font.caption
         }
       }
     }
@@ -888,10 +886,9 @@ Panel {
             onActivated: root.remove(detailRoot.req)
           }
         }
-        Hint {
+        KeyHints {
           width: parent.width
           text: detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING ? root.t("detail.keys") : root.t("detail.keysDone")
-          font.pixelSize: Style.font.caption
         }
       }
     }
@@ -1517,6 +1514,37 @@ Panel {
       color: root.dim
       font.pixelSize: Style.font.caption
       font.bold: true
+    }
+  }
+
+  // Keyboard shortcuts as "key label · key label …" (the translation's
+  // format): each pair is laid out as one unbreakable cap + label, so a line
+  // only ever wraps between shortcuts, never inside one.
+  component KeyHints: Flow {
+    id: hints
+    property string text: ""
+    readonly property var entries: text.split(" · ").map(function(part) {
+      var cut = part.indexOf(" ")
+      return cut < 0 ? { keys: part, label: "" } : { keys: part.slice(0, cut), label: part.slice(cut + 1) }
+    })
+    spacing: Style.space(4)
+    Repeater {
+      model: hints.entries
+      Row {
+        required property var modelData
+        spacing: Style.space(3)
+        Tag {
+          anchors.verticalCenter: parent.verticalCenter
+          text: modelData.keys
+        }
+        PlainText {
+          anchors.verticalCenter: parent.verticalCenter
+          text: modelData.label
+          color: root.dim
+          font.pixelSize: Style.font.caption
+          rightPadding: Style.space(4)
+        }
+      }
     }
   }
 
