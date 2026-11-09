@@ -13,6 +13,18 @@
 - **Everything is configurable** from the panel's settings (gear icon) or `shell.json`.
 - English and French; follows the language chosen in Omarchy.
 
+## Screenshots
+
+| Pending requests | A series being downloaded |
+| :---: | :---: |
+| ![Pending requests, with approve and decline on each row](docs/screenshots/requests.png) | ![Details of a series: download progress, airing state, each season's status](docs/screenshots/details-series.png) |
+| **An available movie** | **Approving with options** |
+| ![Details of a movie: release, director, rating, Watch and Trailer buttons](docs/screenshots/details-movie.png) | ![Approval form: server, quality profile, root folder, language profile, tags and seasons](docs/screenshots/approve.png) |
+| **A new request notification** | **Settings** |
+| ![Notification with Details, Approve and Decline buttons](docs/screenshots/notification.png) | ![Settings: Seerr address, API key in the keyring, refresh interval, notifications](docs/screenshots/settings.png) |
+
+Every view works from the keyboard; the keys of each one are listed at its bottom.
+
 ## Requirements
 
 - [Omarchy](https://omarchy.org) with its shell, which provides the bar, the panel, notifications (`omarchy-notification-send`) and IPC (`omarchy-shell`).

@@ -55,6 +55,7 @@ dev/use-mock.sh off     # restores the saved URL, stops the mock, drops its key
 | `i18n/en.json`, `i18n/fr.json` | translations, same keys in both |
 | `tests/` | `<module>.test.js` per model file, `run.js` runs them, `harness.js` loads model files as QML does |
 | `dev/` | mock Seerr, `use-mock.sh`, Docker stack with a real Seerr |
+| `preview.png`, `docs/screenshots/` | README images, taken on the mock with the interface in English |
 
 The Omarchy UI kit the panel builds on lives in `/usr/share/omarchy/shell/Ui/`
 (`Dropdown.qml`, `BarIconButton.qml`, …). Read it when a kit component behaves
