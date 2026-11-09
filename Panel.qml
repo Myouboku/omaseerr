@@ -469,23 +469,15 @@ Panel {
       if (root.svc.connection === "connecting") return root.t("bar.connecting")
       return root.svc.lastError || root.t("bar.error")
     }
-    // Accent while requests wait, red when Seerr is unreachable, dimmed
-    // while not set up or connecting.
-    iconComponent: Component {
-      Text {
-        textFormat: Text.PlainText
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        text: root.gSeerr
-        color: {
-          if (!root.svc || root.svc.connection === "unconfigured" || root.svc.connection === "connecting")
-            return Qt.darker(root.barForeground, 1.55)
-          if (root.svc.connection === "error") return root.urgent
-          return root.pending > 0 ? root.accent : root.barForeground
-        }
-        font.family: root.fontFamily
-        font.pixelSize: button.iconSize
-      }
+    // The kit draws and optically centres the glyph. Accent while requests
+    // wait, red when Seerr is unreachable, dimmed while not set up or
+    // connecting.
+    text: root.gSeerr
+    foreground: {
+      if (!root.svc || root.svc.connection === "unconfigured" || root.svc.connection === "connecting")
+        return Qt.darker(root.barForeground, 1.55)
+      if (root.svc.connection === "error") return root.urgent
+      return root.pending > 0 ? root.accent : root.barForeground
     }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) { if (root.svc) root.svc.refresh() }
