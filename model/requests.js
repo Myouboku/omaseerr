@@ -154,3 +154,24 @@ function seasonsLabel(seasons) {
   }
   return parts.join(", ")
 }
+
+// The requested seasons with what the series' details say of each:
+// [{ seasonNumber, name, episodeCount }] in season order, and the episodes
+// they add up to. A season the details do not know keeps a count of 0 and
+// leaves the total out (`total` is -1), rather than showing a wrong sum.
+function requestedSeasons(requested, mediaSeasons) {
+  var known = {}
+  var list = Array.isArray(mediaSeasons) ? mediaSeasons : []
+  for (var i = 0; i < list.length; i++) known[list[i].seasonNumber] = list[i]
+  var out = []
+  var total = 0
+  var nums = (requested || []).slice().sort(function(a, b) { return a - b })
+  for (var j = 0; j < nums.length; j++) {
+    var s = known[nums[j]]
+    var count = s ? s.episodeCount : 0
+    out.push({ seasonNumber: nums[j], name: s ? s.name : "", episodeCount: count })
+    if (count > 0 && total >= 0) total += count
+    else total = -1
+  }
+  return { seasons: out, total: out.length ? total : -1 }
+}

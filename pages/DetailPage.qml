@@ -18,6 +18,10 @@ Item {
   readonly property var req: ctx.nav.detailReq
   readonly property var media: req && ctx.svc ? (ctx.svc.mediaRevision, ctx.svc.mediaFor(req)) : null
   readonly property string status: Requests.statusKey(req)
+  // The requested seasons with their episodes, from the series' details.
+  readonly property var seasons: req && req.type === "tv"
+    ? Requests.requestedSeasons(req.seasons, media ? media.seasons : null)
+    : ({ seasons: [], total: -1 })
   readonly property bool busy: !!req && !!ctx.svc && ctx.svc.isBusy(req.id)
   implicitHeight: header0.implicitHeight + Style.space(10) + detailColumn.implicitHeight
                   + (detailKeys.visible ? detailKeys.topMargin + detailKeys.implicitHeight : 0)
@@ -143,8 +147,31 @@ Item {
         InfoPair {
           visible: !!detailRoot.req && detailRoot.req.type === "tv"
           label: ctx.t("detail.seasons")
-          value: detailRoot.req ? Requests.seasonsLabel(detailRoot.req.seasons) : ""
+          value: {
+            if (!detailRoot.req) return ""
+            var label = Requests.seasonsLabel(detailRoot.req.seasons)
+            var total = detailRoot.seasons.total
+            return total > 0 ? label + " · " + ctx.tn("approve.episodes", total) : label
+          }
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
+        }
+        // Each requested season and its episodes, under the seasons line,
+        // once the series' details are in.
+        Column {
+          width: parent.width
+          visible: !!detailRoot.req && detailRoot.req.type === "tv" && detailRoot.seasons.seasons.length > 0 && !!detailRoot.media
+          leftPadding: Style.space(12)
+          spacing: Style.spacing.labelGap
+          Repeater {
+            model: detailRoot.seasons.seasons
+            InfoPair {
+              required property var modelData
+              width: parent.width - Style.space(12)
+              label: modelData.seasonNumber === 0 && modelData.name ? modelData.name : ctx.t("approve.season").arg(modelData.seasonNumber)
+              value: modelData.episodeCount > 0 ? ctx.tn("approve.episodes", modelData.episodeCount) : "–"
+              foreground: ctx.dim; dim: ctx.dim; fontFamily: ctx.fontFamily
+            }
+          }
         }
         InfoPair {
           visible: !!detailRoot.req && detailRoot.req.rootFolder !== ""

@@ -43,6 +43,28 @@ test("mergePage keeps order and drops duplicates", () => {
   eq(Requests.replaceRequest([{ id: 1, a: 1 }], { id: 1, a: 2 }), [{ id: 1, a: 2 }])
 })
 
+test("requestedSeasons pairs requested seasons with their episodes", () => {
+  const media = [
+    { seasonNumber: 0, name: "Specials", episodeCount: 15 },
+    { seasonNumber: 1, name: "Season 1", episodeCount: 10 },
+    { seasonNumber: 3, name: "Season 3", episodeCount: 8 },
+    { seasonNumber: 4, name: "Season 4", episodeCount: 10 },
+  ]
+  const r = Requests.requestedSeasons([4, 1, 3], media)
+  eq(r.seasons.map(s => [s.seasonNumber, s.episodeCount]), [[1, 10], [3, 8], [4, 10]])
+  eq(r.total, 28)
+  eq(r.seasons[0].name, "Season 1")
+  // Specials are season 0, named by the details.
+  eq(Requests.requestedSeasons([0], media).seasons[0].name, "Specials")
+  // A season the details do not know: no wrong total.
+  const missing = Requests.requestedSeasons([1, 9], media)
+  eq(missing.seasons[1], { seasonNumber: 9, name: "", episodeCount: 0 })
+  eq(missing.total, -1)
+  // No details at all, or nothing requested.
+  eq(Requests.requestedSeasons([2], null).total, -1)
+  eq(Requests.requestedSeasons([], media), { seasons: [], total: -1 })
+})
+
 test("seasonsLabel collapses runs", () => {
   eq(Requests.seasonsLabel([1, 2, 3, 5, 7, 8]), "1–3, 5, 7–8")
   eq(Requests.seasonsLabel([4]), "4")
