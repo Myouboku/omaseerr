@@ -728,7 +728,7 @@ Panel {
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
-      visible: root.connected && root.visibleRows.length > 0
+      visible: root.connected
       text: root.t("list.keys")
     }
   }
