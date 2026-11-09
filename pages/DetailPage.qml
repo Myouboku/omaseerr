@@ -71,6 +71,7 @@ Item {
   onReqChanged: Qt.callLater(loadChoices)
   implicitHeight: header0.implicitHeight + Style.space(10) + detailColumn.implicitHeight
                   + (detailKeys.visible ? detailKeys.topMargin + detailKeys.implicitHeight : 0)
+                  + (detailActions.visible ? detailActions.topMargin + detailActions.implicitHeight : 0)
 
   // A season of the request: its name, its episodes, and where it stands
   // (available, being downloaded…) when Seerr knows.
@@ -128,8 +129,8 @@ Item {
     anchors.topMargin: Style.space(10)
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.bottom: detailKeys.visible ? detailKeys.top : parent.bottom
-    anchors.bottomMargin: detailKeys.visible ? detailKeys.topMargin : 0
+    anchors.bottom: detailActions.visible ? detailActions.top : (detailKeys.visible ? detailKeys.top : parent.bottom)
+    anchors.bottomMargin: detailActions.visible ? detailActions.topMargin : (detailKeys.visible ? detailKeys.topMargin : 0)
     contentWidth: width
     contentHeight: detailColumn.implicitHeight
     clip: true
@@ -396,62 +397,70 @@ Item {
         lineHeight: 1.15
       }
 
-      CenteredFlow {
-        width: parent.width
-        visible: !!detailRoot.req
-        ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
-          label: ctx.t("action.approve")
-          glyph: Glyphs.check
-          primary: true
-          busy: detailRoot.busy
-          tooltip: ctx.t("hint.shiftApprove")
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: function(mods) { ctx.nav.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
-        }
-        ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
-          label: ctx.t("action.decline")
-          glyph: Glyphs.close
-          busy: detailRoot.busy
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.decline(detailRoot.req)
-        }
-        ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_FAILED && !!ctx.svc && ctx.svc.canManage
-          label: ctx.t("action.retry")
-          glyph: Glyphs.retry
-          busy: detailRoot.busy
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.svc.retry(detailRoot.req.id)
-        }
-        // Then the links, and deleting last.
-        ActionButton {
-          visible: ctx.nav.watchUrl !== ""
-          label: ctx.t("action.watch")
-          glyph: Glyphs.play
-          primary: true
-          tooltip: ctx.t("action.watch") + "  (w)"
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.watch()
-        }
-        ActionButton {
-          visible: ctx.nav.trailerUrl !== ""
-          label: ctx.t("action.trailer")
-          glyph: Glyphs.trailer
-          tooltip: ctx.t("action.trailer") + "  (v)"
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.trailer()
-        }
-        ActionButton {
-          label: ctx.t("action.delete")
-          glyph: Glyphs.trash
-          danger: true
-          busy: detailRoot.busy
-          foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
-          onActivated: ctx.nav.remove(detailRoot.req)
-        }
-      }
+    }
+  }
+
+  // The actions stay in view, above the shortcuts, however long the
+  // details: no scrolling down a long series to approve it.
+  CenteredFlow {
+    id: detailActions
+    readonly property real topMargin: Style.space(10)
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.bottom: detailKeys.visible ? detailKeys.top : parent.bottom
+    anchors.bottomMargin: detailKeys.visible ? detailKeys.topMargin : 0
+    visible: !!detailRoot.req
+    ActionButton {
+      visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
+      label: ctx.t("action.approve")
+      glyph: Glyphs.check
+      primary: true
+      busy: detailRoot.busy
+      tooltip: ctx.t("hint.shiftApprove")
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: function(mods) { ctx.nav.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
+    }
+    ActionButton {
+      visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
+      label: ctx.t("action.decline")
+      glyph: Glyphs.close
+      busy: detailRoot.busy
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: ctx.nav.decline(detailRoot.req)
+    }
+    ActionButton {
+      visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_FAILED && !!ctx.svc && ctx.svc.canManage
+      label: ctx.t("action.retry")
+      glyph: Glyphs.retry
+      busy: detailRoot.busy
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: ctx.svc.retry(detailRoot.req.id)
+    }
+    // Then the links, and deleting last.
+    ActionButton {
+      visible: ctx.nav.watchUrl !== ""
+      label: ctx.t("action.watch")
+      glyph: Glyphs.play
+      primary: true
+      tooltip: ctx.t("action.watch") + "  (w)"
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: ctx.nav.watch()
+    }
+    ActionButton {
+      visible: ctx.nav.trailerUrl !== ""
+      label: ctx.t("action.trailer")
+      glyph: Glyphs.trailer
+      tooltip: ctx.t("action.trailer") + "  (v)"
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: ctx.nav.trailer()
+    }
+    ActionButton {
+      label: ctx.t("action.delete")
+      glyph: Glyphs.trash
+      danger: true
+      busy: detailRoot.busy
+      foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
+      onActivated: ctx.nav.remove(detailRoot.req)
     }
   }
 
