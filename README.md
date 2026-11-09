@@ -88,7 +88,6 @@ All of them are in the panel (gear icon). They are stored in the widget's entry 
 | `refreshIntervalSec` | `60` | how often to check for new requests (15–3600) |
 | `notifyNewRequests` | `true` | notify new requests |
 | `notifyStatusChanges` | `false` | notify when a request becomes available or fails |
-| `notifyOnStartup` | `false` | announce the requests already pending at the first connection |
 | `notifyUrgency` | `normal` | `low`, `normal`, `critical` |
 | `notifyPoster` | `true` | poster in notifications (downloaded from TMDB, cached in `~/.cache/omaseerr`) |
 | `notifyGroupThreshold` | `3` | one grouped notification from this many new requests (`1` never groups) |

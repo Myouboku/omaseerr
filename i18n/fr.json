@@ -135,8 +135,6 @@
   "settings.notifyNewRequestsHelp": "Avec les boutons Détails, Approuver et Refuser",
   "settings.notifyStatusChanges": "Changements de statut",
   "settings.notifyStatusChangesHelp": "Quand une demande devient disponible ou échoue",
-  "settings.notifyOnStartup": "Annoncer les demandes existantes",
-  "settings.notifyOnStartupHelp": "Notifier aussi les demandes déjà en attente à la connexion",
   "settings.notifyPoster": "Affiches dans les notifications",
   "settings.notifyPosterHelp": "Téléchargées depuis TMDB et mises en cache",
   "settings.notifyUrgency": "Urgence",

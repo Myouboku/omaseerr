@@ -552,7 +552,9 @@ Item {
     _state = { url: baseUrl, seen: seen, statuses: firstRun ? Seerr.statusMap(pending) : st.statuses, primed: true }
     saveState()
     if (!settings.notifyNewRequests) return
-    if (firstRun && !settings.notifyOnStartup) return
+    // Requests already pending on a first connection to a server were not
+    // missed: they are only recorded as seen.
+    if (firstRun) return
     var announce = pending.filter(function(r) { return fresh.indexOf(r.id) !== -1 })
     if (announce.length === 0) return
     // A threshold of 1 means never group.

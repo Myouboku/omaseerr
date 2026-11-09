@@ -1401,7 +1401,6 @@ Panel {
         PanelSectionHeader { text: root.t("settings.notifications"); foreground: root.foreground; fontFamily: root.fontFamily }
         SettingToggle { key: "notifyNewRequests"; label: root.t("settings.notifyNewRequests"); description: root.t("settings.notifyNewRequestsHelp") }
         SettingToggle { key: "notifyStatusChanges"; label: root.t("settings.notifyStatusChanges"); description: root.t("settings.notifyStatusChangesHelp") }
-        SettingToggle { key: "notifyOnStartup"; label: root.t("settings.notifyOnStartup"); description: root.t("settings.notifyOnStartupHelp") }
         SettingToggle { key: "notifyPoster"; label: root.t("settings.notifyPoster"); description: root.t("settings.notifyPosterHelp") }
         SettingChoice {
           key: "notifyUrgency"

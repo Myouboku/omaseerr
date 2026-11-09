@@ -135,8 +135,6 @@
   "settings.notifyNewRequestsHelp": "With Details, Approve and Decline buttons",
   "settings.notifyStatusChanges": "Status changes",
   "settings.notifyStatusChangesHelp": "When a request becomes available or fails",
-  "settings.notifyOnStartup": "Announce existing requests",
-  "settings.notifyOnStartupHelp": "Also notify requests already pending when connecting",
   "settings.notifyPoster": "Posters in notifications",
   "settings.notifyPosterHelp": "Downloaded from TMDB and cached",
   "settings.notifyUrgency": "Urgency",
