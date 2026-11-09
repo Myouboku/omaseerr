@@ -22,6 +22,11 @@ Item {
   readonly property var seasons: req && req.type === "tv"
     ? Requests.requestedSeasons(req.seasons, media ? media.seasons : null)
     : ({ seasons: [], total: -1 })
+  readonly property bool oneSeason: seasons.seasons.length === 1
+  // "Season 3", or the details' own name for the specials (season 0).
+  function seasonName(season) {
+    return season.seasonNumber === 0 && season.name ? season.name : ctx.t("approve.season").arg(season.seasonNumber)
+  }
   readonly property bool busy: !!req && !!ctx.svc && ctx.svc.isBusy(req.id)
   implicitHeight: header0.implicitHeight + Style.space(10) + detailColumn.implicitHeight
                   + (detailKeys.visible ? detailKeys.topMargin + detailKeys.implicitHeight : 0)
@@ -146,9 +151,14 @@ Item {
         }
         InfoPair {
           visible: !!detailRoot.req && detailRoot.req.type === "tv"
-          label: ctx.t("detail.seasons")
+          // One season: just that season and its episodes, on this line.
+          label: detailRoot.oneSeason ? detailRoot.seasonName(detailRoot.seasons.seasons[0]) : ctx.t("detail.seasons")
           value: {
             if (!detailRoot.req) return ""
+            if (detailRoot.oneSeason) {
+              var only = detailRoot.seasons.seasons[0]
+              return only.episodeCount > 0 ? ctx.tn("approve.episodes", only.episodeCount) : ""
+            }
             var label = Requests.seasonsLabel(detailRoot.req.seasons)
             var total = detailRoot.seasons.total
             return total > 0 ? label + " · " + ctx.tn("approve.episodes", total) : label
@@ -159,7 +169,7 @@ Item {
         // once the series' details are in.
         Column {
           width: parent.width
-          visible: !!detailRoot.req && detailRoot.req.type === "tv" && detailRoot.seasons.seasons.length > 0 && !!detailRoot.media
+          visible: !!detailRoot.req && detailRoot.req.type === "tv" && detailRoot.seasons.seasons.length > 1 && !!detailRoot.media
           leftPadding: Style.space(12)
           spacing: Style.spacing.labelGap
           Repeater {
@@ -167,7 +177,7 @@ Item {
             InfoPair {
               required property var modelData
               width: parent.width - Style.space(12)
-              label: modelData.seasonNumber === 0 && modelData.name ? modelData.name : ctx.t("approve.season").arg(modelData.seasonNumber)
+              label: detailRoot.seasonName(modelData)
               value: modelData.episodeCount > 0 ? ctx.tn("approve.episodes", modelData.episodeCount) : "–"
               foreground: ctx.dim; dim: ctx.dim; fontFamily: ctx.fontFamily
             }
