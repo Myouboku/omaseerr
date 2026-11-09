@@ -23,9 +23,9 @@ QtObject {
   signal loaded()
 
   // Whether the key may go to `url`. Computed from the URL itself, never from
-  // the keyOrigin binding: during a URL change, onBaseUrlChanged can run
-  // before that binding catches up, and the old key would leave for the new
-  // server.
+  // the service's keyOrigin binding: during a URL change, its onBaseUrlChanged
+  // can run before that binding catches up, and the old key would leave for
+  // the new server.
   function matches(url) {
     return state === "ok" && _apiKey !== "" && _keyOrigin !== "" && !!url && Seerr.keyOrigin(url) === _keyOrigin
   }
