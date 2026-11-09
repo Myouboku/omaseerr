@@ -133,14 +133,16 @@ dev/use-mock.sh off                     # back to your own URL; your key never l
 
 Link the checkout as a plugin with `ln -s "$PWD" ~/.config/omarchy/plugins/myouboku.omaseerr`, then `omarchy plugin enable myouboku.omaseerr --section right`. After changing a QML file, `omarchy restart shell` is the reliable way to reload it: the shell keeps already-compiled QML types in memory.
 
-| File | Role |
+| Path | Role |
 |------|------|
 | `manifest.json` | plugin id, kinds (`service` + `bar-widget`), settings schema |
-| `Service.qml` | the single instance: keyring, HTTP, polling, notifications, actions, IPC |
-| `Panel.qml` | bar icon and panel (one per monitor), all views |
-| `model/Seerr.js` | pure logic: URLs, payload validation, statuses, filters, approval form |
+| `Service.qml`, `service/` | the single instance: keyring, HTTP (curl), polling, notifications, actions, IPC |
+| `Panel.qml`, `panel/` | bar icon and panel (one per monitor): its state, approval form and keys |
+| `pages/` | the list, detail, approval and settings pages |
+| `ui/` | display components |
+| `model/` | pure logic, one file per topic: URLs and payloads, statuses and filters, settings, approval form, keys… |
 | `i18n/*.json` | translations |
-| `tests/` | `node` tests for the model |
+| `tests/` | `node` tests for the model, one file per module (`node tests/run.js form` runs one) |
 | `dev/` | fake Seerr and a Docker stack with a real one |
 
 ## License
