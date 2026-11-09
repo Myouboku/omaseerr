@@ -1,5 +1,5 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
 
 // The connection to Seerr: who we are on it (me, canManage), whether it
 // answers, and since when it does not. reconnect() starts it over, which
@@ -54,7 +54,7 @@ QtObject {
 
   function onAuthAnswer(res) {
     if (!res.ok) { fail(res); return }
-    me = Seerr.normalizeUser(res.data)
+    me = Api.normalizeUser(res.data)
     var perms = res.data && typeof res.data.permissions === "number" ? res.data.permissions : 0
     // ADMIN (2) or MANAGE_REQUESTS (16).
     canManage = (perms & 2) !== 0 || (perms & 16) !== 0

@@ -5,7 +5,8 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
 import "../ui"
 import "../ui/Glyphs.js" as Glyphs
 
@@ -75,7 +76,7 @@ Item {
           enabled: urlField.text.trim() !== ctx.cfg.url
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
           onActivated: {
-            var n = Seerr.normalizeBaseUrl(urlField.text)
+            var n = Api.normalizeBaseUrl(urlField.text)
             if (urlField.text.trim() === "") { ctx.nav.saveSetting({ url: "" }); return }
             if (!n.ok) { ctx.nav.flash(ctx.t("settings.urlInvalid"), true); return }
             urlField.text = n.url
@@ -182,22 +183,22 @@ Item {
       BoundChoice {
         key: "defaultFilter"
         label: ctx.t("settings.defaultFilter")
-        options: Seerr.FILTERS.map(function(f) { return { value: f, label: ctx.t("filter." + f) } })
+        options: Requests.FILTERS.map(function(f) { return { value: f, label: ctx.t("filter." + f) } })
       }
       BoundChoice {
         key: "defaultMediaType"
         label: ctx.t("settings.defaultMediaType")
-        options: Seerr.MEDIA_TYPES.map(function(f) { return { value: f, label: ctx.t("mediaType." + f) } })
+        options: Requests.MEDIA_TYPES.map(function(f) { return { value: f, label: ctx.t("mediaType." + f) } })
       }
       BoundChoice {
         key: "defaultSort"
         label: ctx.t("settings.defaultSort")
-        options: Seerr.SORTS.map(function(f) { return { value: f, label: ctx.t("sort." + f) } })
+        options: Requests.SORTS.map(function(f) { return { value: f, label: ctx.t("sort." + f) } })
       }
       BoundChoice {
         key: "defaultSortDirection"
         label: ctx.t("settings.defaultSortDirection")
-        options: Seerr.DIRECTIONS.map(function(f) { return { value: f, label: ctx.t("sort." + f) } })
+        options: Requests.DIRECTIONS.map(function(f) { return { value: f, label: ctx.t("sort." + f) } })
       }
       BoundChoice {
         key: "pageSize"

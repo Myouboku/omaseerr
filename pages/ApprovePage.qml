@@ -5,7 +5,8 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/form.js" as Form
 import "../ui"
 import "../ui/Glyphs.js" as Glyphs
 
@@ -57,7 +58,7 @@ Item {
           visible: ctx.cfg.showPosters
           Layout.preferredWidth: Style.space(36)
           Layout.preferredHeight: Style.space(54)
-          url: ctx.cfg.showPosters ? Seerr.posterUrl(ctx.approval.media ? ctx.approval.media.posterPath : "", "w92") : ""
+          url: ctx.cfg.showPosters ? Api.posterUrl(ctx.approval.media ? ctx.approval.media.posterPath : "", "w92") : ""
           type: approveRoot.req ? approveRoot.req.type : "movie"
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
@@ -131,7 +132,7 @@ Item {
         label: ctx.t("approve.rootFolder")
         current: ctx.approval.form ? ctx.approval.form.rootFolder : ""
         options: ctx.approval.details ? ctx.approval.details.rootFolders.map(function(f) {
-          var free = f.freeSpace >= 0 ? "  (" + ctx.t("approve.free").arg(Seerr.formatBytes(f.freeSpace, Commons.I18n.formatNumber)) + ")" : ""
+          var free = f.freeSpace >= 0 ? "  (" + ctx.t("approve.free").arg(Form.formatBytes(f.freeSpace, Commons.I18n.formatNumber)) + ")" : ""
           return { value: f.path, label: f.path + free }
         }) : []
         foreground: ctx.foreground
@@ -164,7 +165,7 @@ Item {
               label: modelData.name
               selected: !!ctx.approval.form && ctx.approval.form.tags.indexOf(modelData.id) !== -1
               foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
-              onActivated: ctx.approval.set({ tags: Seerr.toggleInList(ctx.approval.form.tags, modelData.id) })
+              onActivated: ctx.approval.set({ tags: Form.toggleInList(ctx.approval.form.tags, modelData.id) })
             }
           }
         }
@@ -191,7 +192,7 @@ Item {
               tooltip: modelData.episodeCount ? ctx.tn("approve.episodes", modelData.episodeCount) : ""
               selected: !!ctx.approval.form && ctx.approval.form.seasons.indexOf(modelData.seasonNumber) !== -1
               foreground: ctx.foreground; accent: ctx.accent; fontFamily: ctx.fontFamily
-              onActivated: ctx.approval.set({ seasons: Seerr.toggleInList(ctx.approval.form.seasons, modelData.seasonNumber) })
+              onActivated: ctx.approval.set({ seasons: Form.toggleInList(ctx.approval.form.seasons, modelData.seasonNumber) })
             }
           }
         }
@@ -205,7 +206,7 @@ Item {
           glyph: Glyphs.check
           primary: true
           busy: approveRoot.busy
-          enabled: !!ctx.approval.form && !ctx.approval.loading && Seerr.formProblem(approveRoot.req, ctx.approval.form) === ""
+          enabled: !!ctx.approval.form && !ctx.approval.loading && Form.formProblem(approveRoot.req, ctx.approval.form) === ""
           tooltip: ctx.t("hint.shiftApprove")
           foreground: ctx.foreground; accent: ctx.accent; urgent: ctx.urgent; fontFamily: ctx.fontFamily
           onActivated: function(mods) { ctx.approval.submit((mods & Qt.ShiftModifier) !== 0) }

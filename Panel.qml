@@ -5,7 +5,8 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "model/Seerr.js" as Seerr
+import "model/requests.js" as Requests
+import "model/settings.js" as Settings
 import "pages"
 import "panel"
 import "ui"
@@ -18,8 +19,8 @@ import "ui/Glyphs.js" as Glyphs
 // components (ui/).
 Panel {
   id: root
-  moduleName: Seerr.PLUGIN_ID
-  ipcTarget: Seerr.PLUGIN_ID
+  moduleName: Settings.PLUGIN_ID
+  ipcTarget: Settings.PLUGIN_ID
   // The service answers IPC once for all monitors.
   manageIpc: false
 
@@ -30,7 +31,7 @@ Panel {
   function resolveService() {
     if (svc) return
     var api = bar && bar.shell ? bar.shell : null
-    if (api && typeof api.serviceFor === "function") svc = api.serviceFor(Seerr.PLUGIN_ID)
+    if (api && typeof api.serviceFor === "function") svc = api.serviceFor(Settings.PLUGIN_ID)
     if (svc) pushSettings()
   }
 
@@ -70,13 +71,13 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   function statusColor(key) {
-    var c = Seerr.statusColor(key)
+    var c = Requests.statusColor(key)
     if (c === "") return foreground
     if (c === "dim") return dim
     return c
   }
 
-  readonly property var cfg: svc ? svc.settings : Seerr.normalizeSettings({})
+  readonly property var cfg: svc ? svc.settings : Settings.normalizeSettings({})
   readonly property bool connected: !!svc && svc.connection === "connected"
   readonly property int pending: svc ? svc.counts.pending : 0
 

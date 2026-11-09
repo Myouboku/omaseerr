@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell.Io
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/curl.js" as Curl
 
 // Calls to Seerr's API: a pool of curl processes, at most maxParallel at a
 // time, each bounded in time. Every call belongs to a connection; reset()
@@ -22,7 +23,7 @@ QtObject {
   // cb({ ok, status, data, error, message, location }). Callbacks from a
   // superseded connection (URL or key changed meanwhile) are dropped. The
   // request runs through curl, which does not follow redirects: see
-  // Seerr.curlConfig.
+  // Curl.curlConfig.
   function api(method, path, body, cb) {
     // Checked against the very URL requested below.
     var target = svc.baseUrl
@@ -32,7 +33,7 @@ QtObject {
     }
     var generation = http.generation
     var call = {
-      config: Seerr.curlConfig(method, target + Seerr.API_PREFIX + path, keyring.keyFor(target), body),
+      config: Curl.curlConfig(method, target + Api.API_PREFIX + path, keyring.keyFor(target), body),
       proc: null, deadline: 0, done: false, finish: null
     }
     call.finish = function(result) {
@@ -55,7 +56,7 @@ QtObject {
       var call = _queue.shift()
       if (call.done) continue
       call.deadline = Date.now() + (requestTimeoutSec + 5) * 1000
-      call.proc = curlProcess.createObject(http, { call: call, command: Seerr.curlArgv(requestTimeoutSec) })
+      call.proc = curlProcess.createObject(http, { call: call, command: Curl.curlArgv(requestTimeoutSec) })
       if (!call.proc) { call.finish({ ok: false, status: 0, error: "network" }); continue }
       _inflight.push(call)
       call.proc.running = true
@@ -97,7 +98,7 @@ QtObject {
       onExited: function(code) {
         var call = proc.call
         proc.call = null
-        if (call) call.finish(Seerr.parseCurlResult(code, String(curlOut.text || "")))
+        if (call) call.finish(Curl.parseCurlResult(code, String(curlOut.text || "")))
         Qt.callLater(function() { proc.destroy() })
       }
     }

@@ -1,5 +1,6 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/notify.js" as Notify
 
 // Asks Seerr every refreshIntervalSec what changed: the counts, the
 // pending requests (new ones are announced) and, when asked to, the
@@ -17,7 +18,7 @@ QtObject {
   // Ids seen and statuses, saved across restarts.
   required property var stateFile
 
-  property var counts: Seerr.normalizeCounts(null)
+  property var counts: Api.normalizeCounts(null)
   property bool _polling: false
 
   // New pending requests, newest first, worth announcing.
@@ -42,7 +43,7 @@ QtObject {
   }
 
   function clear() {
-    counts = Seerr.normalizeCounts(null)
+    counts = Api.normalizeCounts(null)
   }
 
   function refresh() {
@@ -56,16 +57,16 @@ QtObject {
     _polling = true
     http.api("GET", "/request/count", null, function(res) {
       if (!res.ok) { poller._polling = false; poller.conn.fail(res); return }
-      poller.counts = Seerr.normalizeCounts(res.data)
+      poller.counts = Api.normalizeCounts(res.data)
       poller.conn.lastOkAt = Date.now()
       poller.pollPending()
     })
   }
 
   function pollPending() {
-    http.api("GET", Seerr.listPath({ filter: "pending", take: 50, skip: 0, sort: "added", sortDirection: "desc", mediaType: "all" }), null, function(res) {
+    http.api("GET", Api.listPath({ filter: "pending", take: 50, skip: 0, sort: "added", sortDirection: "desc", mediaType: "all" }), null, function(res) {
       if (!res.ok) { poller._polling = false; poller.conn.fail(res); return }
-      var pending = Seerr.normalizeRequestList(res.data).requests
+      var pending = Api.normalizeRequestList(res.data).requests
       poller.handlePending(pending)
       // Before the saved state is read, comparing statuses (and saving them)
       // would write over it.
@@ -78,12 +79,12 @@ QtObject {
   }
 
   function pollStatuses() {
-    http.api("GET", Seerr.listPath({ filter: "all", take: 50, skip: 0, sort: "modified", sortDirection: "desc", mediaType: "all" }), null, function(res) {
+    http.api("GET", Api.listPath({ filter: "all", take: 50, skip: 0, sort: "modified", sortDirection: "desc", mediaType: "all" }), null, function(res) {
       poller._polling = false
       if (!res.ok) { poller.conn.fail(res); return }
-      var recent = Seerr.normalizeRequestList(res.data).requests
-      var changes = Seerr.statusChanges(poller.stateFile.state.statuses, recent)
-      var next = Seerr.statusMap(recent)
+      var recent = Api.normalizeRequestList(res.data).requests
+      var changes = Notify.statusChanges(poller.stateFile.state.statuses, recent)
+      var next = Notify.statusMap(recent)
       var st = poller.stateFile.state
       poller.stateFile.state = { url: st.url, seen: st.seen, statuses: next, primed: st.primed }
       poller.stateFile.save()
@@ -102,9 +103,9 @@ QtObject {
     if (!stateFile.loaded) return
     var st = stateFile.state
     var firstRun = !st.primed || st.url !== svc.baseUrl
-    var fresh = Seerr.newRequestIds(firstRun ? [] : st.seen, pending)
-    var seen = Seerr.rememberIds(firstRun ? [] : st.seen, pending.map(function(r) { return r.id }))
-    stateFile.state = { url: svc.baseUrl, seen: seen, statuses: firstRun ? Seerr.statusMap(pending) : st.statuses, primed: true }
+    var fresh = Notify.newRequestIds(firstRun ? [] : st.seen, pending)
+    var seen = Notify.rememberIds(firstRun ? [] : st.seen, pending.map(function(r) { return r.id }))
+    stateFile.state = { url: svc.baseUrl, seen: seen, statuses: firstRun ? Notify.statusMap(pending) : st.statuses, primed: true }
     stateFile.save()
     // Requests already pending on a first connection to a server were not
     // missed: they are only recorded as seen.

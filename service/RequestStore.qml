@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons as Commons
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
 
 // The requests the panels show: the list (view, rows, paging), the latest
 // version of every request seen, and the tmdb details (titles, posters) of
@@ -29,7 +30,7 @@ QtObject {
   property int _listGeneration: 0
   readonly property bool hasMore: _listSkip < rowsTotal
 
-  // tmdb details by Seerr.mediaKey; mediaRevision bumps on every arrival so
+  // tmdb details by Api.mediaKey; mediaRevision bumps on every arrival so
   // bindings reading media through mediaFor() re-evaluate.
   property var media: ({})
   property int mediaRevision: 0
@@ -149,12 +150,12 @@ QtObject {
     if (listLoading || conn.state !== "connected") return
     var generation = ++_listGeneration
     var take = Math.min(100, Math.max(pageSize(), rows.length))
-    http.api("GET", Seerr.listPath({ filter: view.filter, mediaType: view.mediaType, sort: view.sort, sortDirection: view.sortDirection, take: take, skip: 0 }), null, function(res) {
+    http.api("GET", Api.listPath({ filter: view.filter, mediaType: view.mediaType, sort: view.sort, sortDirection: view.sortDirection, take: take, skip: 0 }), null, function(res) {
       if (generation !== store._listGeneration || !res.ok) return
-      var page = Seerr.normalizeRequestList(res.data)
+      var page = Api.normalizeRequestList(res.data)
       store.remember(page.requests)
       if (store.rows.length > take) {
-        store.rows = Seerr.mergePage(page.requests, store.rows.slice(take))
+        store.rows = Requests.mergePage(page.requests, store.rows.slice(take))
       } else {
         store.rows = page.requests
         store._listSkip = page.requests.length
@@ -172,7 +173,7 @@ QtObject {
   function continueDeclinedScan() {
     if (view.filter !== "declined" || !hasMore || rows.length >= declinedScanLimit) return
     var found = 0
-    for (var i = 0; i < rows.length; i++) if (rows[i].status === Seerr.REQUEST_DECLINED) found++
+    for (var i = 0; i < rows.length; i++) if (rows[i].status === Requests.REQUEST_DECLINED) found++
     if (found < svc.settings.pageSize) Qt.callLater(loadMore)
   }
 
@@ -181,13 +182,13 @@ QtObject {
     var generation = _listGeneration
     var skip = reset ? 0 : _listSkip
     listLoading = true
-    http.api("GET", Seerr.listPath({ filter: view.filter, mediaType: view.mediaType, sort: view.sort, sortDirection: view.sortDirection, take: pageSize(), skip: skip }), null, function(res) {
+    http.api("GET", Api.listPath({ filter: view.filter, mediaType: view.mediaType, sort: view.sort, sortDirection: view.sortDirection, take: pageSize(), skip: skip }), null, function(res) {
       if (generation !== store._listGeneration) return
       store.listLoading = false
       if (!res.ok) { store.listError = store.conn.describeError(res); return }
-      var page = Seerr.normalizeRequestList(res.data)
+      var page = Api.normalizeRequestList(res.data)
       store.remember(page.requests)
-      store.rows = reset ? page.requests : Seerr.mergePage(store.rows, page.requests)
+      store.rows = reset ? page.requests : Requests.mergePage(store.rows, page.requests)
       store.rowsTotal = page.total
       store._listSkip = skip + page.requests.length
       store.listError = ""
@@ -204,17 +205,17 @@ QtObject {
   function updateRow(req) {
     var found = false
     for (var i = 0; i < rows.length; i++) if (rows[i].id === req.id) found = true
-    if (found) rows = Seerr.replaceRequest(rows, req)
+    if (found) rows = Requests.replaceRequest(rows, req)
   }
 
   function removeRow(id) {
-    rows = Seerr.removeRequest(rows, id)
+    rows = Requests.removeRequest(rows, id)
   }
 
   // Fetches one request (for IPC/notification paths that may not have it).
   function fetchRequest(id, cb) {
     http.api("GET", "/request/" + id, null, function(res) {
-      var req = res.ok ? Seerr.normalizeRequest(res.data) : null
+      var req = res.ok ? Api.normalizeRequest(res.data) : null
       if (req) store.remember([req])
       cb(req, res)
     })
@@ -225,7 +226,7 @@ QtObject {
   function mediaFor(req) {
     // Reading mediaRevision makes callers' bindings follow new arrivals.
     if (mediaRevision < 0 || !req) return null
-    return media[Seerr.mediaKey(req.type, req.tmdbId)] || null
+    return media[Api.mediaKey(req.type, req.tmdbId)] || null
   }
 
   function fetchMediaFor(list) {
@@ -234,16 +235,16 @@ QtObject {
 
   function ensureMedia(req, cb) {
     if (!req || !req.tmdbId) { if (cb) cb(null); return }
-    var key = Seerr.mediaKey(req.type, req.tmdbId)
+    var key = Api.mediaKey(req.type, req.tmdbId)
     if (media[key]) { if (cb) cb(media[key]); return }
     var waiting = _mediaWaiters[key]
     if (waiting) { if (cb) waiting.push(cb); return }
     _mediaWaiters[key] = cb ? [cb] : []
     var lang = String(Commons.I18n.language || "en")
-    http.api("GET", Seerr.mediaPath(req.type, req.tmdbId) + "?language=" + encodeURIComponent(lang), null, function(res) {
+    http.api("GET", Api.mediaPath(req.type, req.tmdbId) + "?language=" + encodeURIComponent(lang), null, function(res) {
       var waiters = store._mediaWaiters[key] || []
       delete store._mediaWaiters[key]
-      var value = res.ok ? Seerr.normalizeMedia(res.data, req.type) : null
+      var value = res.ok ? Api.normalizeMedia(res.data, req.type) : null
       if (value) {
         var next = store.media
         next[key] = value

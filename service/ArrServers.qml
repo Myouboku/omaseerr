@@ -1,5 +1,5 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
 
 // The Radarr and Sonarr servers Seerr knows, and each one's profiles,
 // folders and tags, for the approval form. Kept a few minutes: they rarely
@@ -27,7 +27,7 @@ QtObject {
     if (cached && Date.now() - cached.at < serviceCacheMs) { cb(cached.value, null); return }
     http.api("GET", "/service/" + type, null, function(res) {
       if (!res.ok) { cb(null, servers.conn.describeError(res)); return }
-      var value = Seerr.normalizeServers(res.data)
+      var value = Api.normalizeServers(res.data)
       var next = servers._servers
       next[type] = { at: Date.now(), value: value }
       servers._servers = next
@@ -41,7 +41,7 @@ QtObject {
     if (cached && Date.now() - cached.at < serviceCacheMs) { cb(cached.value, null); return }
     http.api("GET", "/service/" + type + "/" + serverId, null, function(res) {
       if (!res.ok) { cb(null, servers.conn.describeError(res)); return }
-      var value = Seerr.normalizeServerDetails(res.data)
+      var value = Api.normalizeServerDetails(res.data)
       var next = servers._serverDetails
       next[key] = { at: Date.now(), value: value }
       servers._serverDetails = next

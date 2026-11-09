@@ -1,6 +1,8 @@
 import QtQuick
 import Quickshell.Io
-import "../model/Seerr.js" as Seerr
+import "../model/values.js" as Values
+import "../model/api.js" as Api
+import "../model/settings.js" as Settings
 
 // The API key, kept in the keyring (secret-tool) under the origin of the
 // URL it was entered for. Each lookup ends with `loaded`, after which the
@@ -27,7 +29,7 @@ QtObject {
   // can run before that binding catches up, and the old key would leave for
   // the new server.
   function matches(url) {
-    return state === "ok" && _apiKey !== "" && _keyOrigin !== "" && !!url && Seerr.keyOrigin(url) === _keyOrigin
+    return state === "ok" && _apiKey !== "" && _keyOrigin !== "" && !!url && Api.keyOrigin(url) === _keyOrigin
   }
 
   // The key, for a call to `url` only.
@@ -81,7 +83,7 @@ QtObject {
   property Process _lookup: Process {
     id: keyLookup
     property string origin: ""
-    command: ["secret-tool", "lookup", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
+    command: ["secret-tool", "lookup", "service", Settings.PLUGIN_ID, "account", "api-key", "origin", origin]
     stdout: StdioCollector { id: keyLookupOut; waitForEnd: true }
     stderr: StdioCollector { id: keyLookupErr; waitForEnd: true }
     onExited: function(code) {
@@ -102,7 +104,7 @@ QtObject {
         // secret-tool exits 1 with no output when nothing is stored.
         var err = String(keyLookupErr.text || "").trim()
         keyring.state = code === 1 && err === "" && key === "" ? "missing" : "error"
-        keyring.message = keyring.state === "error" ? (err ? Seerr.str(err, 200) : keyring.svc.t("key.lookupFailed")) : ""
+        keyring.message = keyring.state === "error" ? (err ? Values.str(err, 200) : keyring.svc.t("key.lookupFailed")) : ""
       }
       keyring.loaded()
     }
@@ -113,7 +115,7 @@ QtObject {
     id: keyStore
     property string origin: ""
     command: ["secret-tool", "store", "--label=OmaSeerr (Seerr API key for " + origin + ")",
-      "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
+      "service", Settings.PLUGIN_ID, "account", "api-key", "origin", origin]
     stdinEnabled: true
     stderr: StdioCollector { id: keyStoreErr; waitForEnd: true }
     onStarted: {
@@ -124,7 +126,7 @@ QtObject {
     onExited: function(code) {
       keyStore.stdinEnabled = true
       if (code !== 0) {
-        keyring.message = Seerr.str(String(keyStoreErr.text || "").trim(), 200) || keyring.svc.t("key.storeFailed")
+        keyring.message = Values.str(String(keyStoreErr.text || "").trim(), 200) || keyring.svc.t("key.storeFailed")
         return
       }
       keyring.message = ""
@@ -135,7 +137,7 @@ QtObject {
   property Process _clear: Process {
     id: keyClear
     property string origin: ""
-    command: ["secret-tool", "clear", "service", Seerr.PLUGIN_ID, "account", "api-key", "origin", origin]
+    command: ["secret-tool", "clear", "service", Settings.PLUGIN_ID, "account", "api-key", "origin", origin]
     onExited: function() { keyring.load() }
   }
 }

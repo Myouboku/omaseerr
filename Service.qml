@@ -2,7 +2,8 @@ import QtQuick
 import Quickshell
 import qs.Commons
 import qs.Commons as Commons
-import "model/Seerr.js" as Seerr
+import "model/api.js" as Api
+import "model/settings.js" as Settings
 import "service"
 
 // The one OmaSeerr instance per shell. It owns the connection (URL from the
@@ -20,7 +21,7 @@ Item {
   property var manifest: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH") || "/usr/share/omarchy"
 
-  readonly property string pluginId: Seerr.PLUGIN_ID
+  readonly property string pluginId: Settings.PLUGIN_ID
 
   // ---------------------------------------------------------------- settings
 
@@ -30,14 +31,14 @@ Item {
   // plugins reload, so it serves only until a widget reports in.
   property var widgetSettings: null
   readonly property var entry: widgetSettings ? widgetSettings
-    : (shell && shell.barConfig ? Seerr.findBarEntry(shell.barConfig, pluginId) : null)
-  readonly property var settings: Seerr.normalizeSettings(entry || {})
+    : (shell && shell.barConfig ? Settings.findBarEntry(shell.barConfig, pluginId) : null)
+  readonly property var settings: Settings.normalizeSettings(entry || {})
   readonly property string baseUrl: settings.url
   // Where the API key may go: the keyring holds one key per origin.
-  readonly property string keyOrigin: Seerr.keyOrigin(baseUrl)
+  readonly property string keyOrigin: Api.keyOrigin(baseUrl)
   readonly property bool insecure: baseUrl.indexOf("http://") === 0
   // Plain HTTP to something outside the local network: worth a warning.
-  readonly property bool exposed: insecure && !Seerr.isPrivateHost(baseUrl)
+  readonly property bool exposed: insecure && !Api.isPrivateHost(baseUrl)
   readonly property bool canSaveSettings: !!shell && typeof shell.updateEntryInline === "function"
 
   function saveSettings(patch) {
@@ -204,7 +205,7 @@ Item {
 
   function openInBrowser(req) {
     if (!baseUrl) return
-    var url = req ? Seerr.webUrl(baseUrl, req.type, req.tmdbId) : baseUrl + "/requests"
+    var url = req ? Api.webUrl(baseUrl, req.type, req.tmdbId) : baseUrl + "/requests"
     Qt.openUrlExternally(url)
   }
 
@@ -219,7 +220,7 @@ Item {
   // A request of another server than the one now configured is not shown:
   // its id would open an unrelated request here.
   function showRequest(target) {
-    var named = Seerr.actionTarget(target)
+    var named = Api.actionTarget(target)
     focusRequestId = named.origin === "" || named.origin === keyOrigin ? named.id : 0
     return openPanel()
   }
@@ -231,7 +232,7 @@ Item {
   }
 
   ShellIpc {
-    target: Seerr.PLUGIN_ID
+    target: Settings.PLUGIN_ID
 
     function ping(): string { return "ok" }
     function status(): string { return root.statusLine() }
@@ -245,7 +246,7 @@ Item {
     function reloadKey(): string { keyring.load(); return "ok" }
     // omarchy-shell myouboku.omaseerr set notifyStatusChanges true
     function set(key: string, value: string): string {
-      var v = Seerr.parseSettingValue(key, value)
+      var v = Settings.parseSettingValue(key, value)
       if (v === undefined) return "invalid"
       var patch = {}
       patch[key] = v

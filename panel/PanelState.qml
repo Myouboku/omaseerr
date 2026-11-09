@@ -1,7 +1,8 @@
 import QtQuick
 import qs.Commons
 import qs.Commons as Commons
-import "../model/Seerr.js" as Seerr
+import "../model/requests.js" as Requests
+import "../model/time.js" as Time
 
 // What one panel shows and does: the page, the list's cursor, the request
 // on display, the toast, the confirmation question, and the actions behind
@@ -30,7 +31,7 @@ QtObject {
     var out = []
     for (var i = 0; i < svc.rows.length; i++) {
       var r = svc.rows[i]
-      if (Seerr.matchesView(r, view, svc.mediaFor(r))) out.push(r)
+      if (Requests.matchesView(r, view, svc.mediaFor(r))) out.push(r)
     }
     return out
   }
@@ -164,13 +165,13 @@ QtObject {
   // Approve with the form, or straight away with Seerr's defaults when Shift
   // is held (or the caller asks for it).
   function approve(req, quick) {
-    if (!svc || !req || req.status !== Seerr.REQUEST_PENDING || !svc.canManage) return
+    if (!svc || !req || req.status !== Requests.REQUEST_PENDING || !svc.canManage) return
     if (quick) { svc.quickApprove(req.id, false); return }
     ctx.approval.start(req)
   }
 
   function decline(req) {
-    if (!svc || !req || req.status !== Seerr.REQUEST_PENDING || !svc.canManage) return
+    if (!svc || !req || req.status !== Requests.REQUEST_PENDING || !svc.canManage) return
     if (ctx.cfg.confirmDecline) askConfirm("decline", req.id)
     else svc.decline(req.id, false)
   }
@@ -301,7 +302,7 @@ QtObject {
 
   // Compact age for the list: "3 h", "20 min", "2 d".
   function age(ms) {
-    return Seerr.relativeTime(ms, Math.max(now, Date.now() - 1000), {
+    return Time.relativeTime(ms, Math.max(now, Date.now() - 1000), {
       now: ctx.t("age.now"),
       minutes: function(n) { return nav.ctx.t("age.minutes").arg(n) },
       hours: function(n) { return nav.ctx.t("age.hours").arg(n) },
@@ -311,7 +312,7 @@ QtObject {
   }
 
   function relative(ms) {
-    return Seerr.relativeTime(ms, Math.max(now, Date.now() - 1000), {
+    return Time.relativeTime(ms, Math.max(now, Date.now() - 1000), {
       now: ctx.t("time.now"),
       minutes: function(n) { return nav.ctx.tn("time.minutes", n) },
       hours: function(n) { return nav.ctx.tn("time.hours", n) },

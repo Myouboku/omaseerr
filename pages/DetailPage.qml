@@ -5,7 +5,8 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
 import "../ui"
 import "../ui/Glyphs.js" as Glyphs
 
@@ -16,7 +17,7 @@ Item {
   required property var ctx
   readonly property var req: ctx.nav.detailReq
   readonly property var media: req && ctx.svc ? (ctx.svc.mediaRevision, ctx.svc.mediaFor(req)) : null
-  readonly property string status: Seerr.statusKey(req)
+  readonly property string status: Requests.statusKey(req)
   readonly property bool busy: !!req && !!ctx.svc && ctx.svc.isBusy(req.id)
   implicitHeight: header0.implicitHeight + Style.space(10) + detailColumn.implicitHeight
                   + (detailKeys.visible ? detailKeys.topMargin + detailKeys.implicitHeight : 0)
@@ -63,7 +64,7 @@ Item {
           visible: ctx.cfg.showPosters
           width: Style.space(92)
           height: Style.space(138)
-          url: ctx.cfg.showPosters ? Seerr.posterUrl(detailRoot.media ? detailRoot.media.posterPath : "", "w185") : ""
+          url: ctx.cfg.showPosters ? Api.posterUrl(detailRoot.media ? detailRoot.media.posterPath : "", "w185") : ""
           type: detailRoot.req ? detailRoot.req.type : "movie"
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
@@ -141,7 +142,7 @@ Item {
         InfoPair {
           visible: !!detailRoot.req && detailRoot.req.type === "tv"
           label: ctx.t("detail.seasons")
-          value: detailRoot.req ? Seerr.seasonsLabel(detailRoot.req.seasons) : ""
+          value: detailRoot.req ? Requests.seasonsLabel(detailRoot.req.seasons) : ""
           foreground: ctx.foreground; dim: ctx.dim; fontFamily: ctx.fontFamily
         }
         InfoPair {
@@ -171,7 +172,7 @@ Item {
         spacing: Style.space(6)
         visible: !!detailRoot.req
         ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
+          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
           label: ctx.t("action.approve")
           glyph: Glyphs.check
           primary: true
@@ -181,7 +182,7 @@ Item {
           onActivated: function(mods) { ctx.nav.approve(detailRoot.req, (mods & Qt.ShiftModifier) !== 0) }
         }
         ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
+          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage
           label: ctx.t("action.decline")
           glyph: Glyphs.close
           busy: detailRoot.busy
@@ -189,7 +190,7 @@ Item {
           onActivated: ctx.nav.decline(detailRoot.req)
         }
         ActionButton {
-          visible: !!detailRoot.req && detailRoot.req.status === Seerr.REQUEST_FAILED && !!ctx.svc && ctx.svc.canManage
+          visible: !!detailRoot.req && detailRoot.req.status === Requests.REQUEST_FAILED && !!ctx.svc && ctx.svc.canManage
           label: ctx.t("action.retry")
           glyph: Glyphs.retry
           busy: detailRoot.busy
@@ -218,8 +219,8 @@ Item {
     visible: !!detailRoot.req
     text: {
       var r = detailRoot.req
-      if (r && r.status === Seerr.REQUEST_PENDING) return ctx.t("detail.keys")
-      if (r && r.status === Seerr.REQUEST_FAILED) return ctx.t("detail.keysFailed")
+      if (r && r.status === Requests.REQUEST_PENDING) return ctx.t("detail.keys")
+      if (r && r.status === Requests.REQUEST_FAILED) return ctx.t("detail.keysFailed")
       return ctx.t("detail.keysDone")
     }
     tone: ctx.dim

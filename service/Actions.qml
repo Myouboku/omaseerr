@@ -1,5 +1,8 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/values.js" as Values
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
+import "../model/form.js" as Form
 
 // What can be done to a request: approve (straight away or with the form's
 // choices), decline, retry, delete; from a panel, or from IPC and
@@ -64,7 +67,7 @@ QtObject {
 
   // Seerr's own defaults: no form, straight to approve.
   function quickApprove(id, notify) {
-    id = Seerr.positiveId(id)
+    id = Values.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
     postStatus(id, "approve", notify)
@@ -74,7 +77,7 @@ QtObject {
   // POST /request/{id}/approve|decline, for an id already marked busy.
   function postStatus(id, action, notify) {
     http.api("POST", "/request/" + id + "/" + action, null, function(res) {
-      actions.afterAction(id, action, res, res.ok ? Seerr.normalizeRequest(res.data) : null, notify)
+      actions.afterAction(id, action, res, res.ok ? Api.normalizeRequest(res.data) : null, notify)
     })
   }
 
@@ -85,7 +88,7 @@ QtObject {
   // another Seerr. So the request is read first and only a pending one, of
   // the server the notification named, is acted on. The outcome is notified.
   function actFromOutside(target, action) {
-    var named = Seerr.actionTarget(target)
+    var named = Api.actionTarget(target)
     var id = named.id
     if (!id) return "ignored"
     if (isBusy(id)) return "busy"
@@ -99,7 +102,7 @@ QtObject {
     setBusy(id, true)
     store.fetchRequest(id, function(req, res) {
       if (!req) { actions.afterAction(id, action, res.ok ? { ok: false, status: 0, error: "badJson" } : res, null, true); return }
-      if (req.status !== Seerr.REQUEST_PENDING) {
+      if (req.status !== Requests.REQUEST_PENDING) {
         actions.afterAction(id, action, { ok: false, status: 0, error: "notPending" }, req, true)
         return
       }
@@ -112,20 +115,20 @@ QtObject {
   // seasons on the request, then approve it.
   function approveWithForm(req, form) {
     if (!req || isBusy(req.id)) return false
-    if (Seerr.formProblem(req, form) !== "") return false
+    if (Form.formProblem(req, form) !== "") return false
     var id = req.id
     setBusy(id, true)
-    http.api("PUT", "/request/" + id, Seerr.updateBody(req, form), function(res) {
+    http.api("PUT", "/request/" + id, Form.updateBody(req, form), function(res) {
       if (!res.ok) { actions.afterAction(id, "approve", res, null, false); return }
       actions.http.api("POST", "/request/" + id + "/approve", null, function(res2) {
-        actions.afterAction(id, "approve", res2, res2.ok ? Seerr.normalizeRequest(res2.data) : null, false)
+        actions.afterAction(id, "approve", res2, res2.ok ? Api.normalizeRequest(res2.data) : null, false)
       })
     })
     return true
   }
 
   function decline(id, notify) {
-    id = Seerr.positiveId(id)
+    id = Values.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
     postStatus(id, "decline", notify)
@@ -133,17 +136,17 @@ QtObject {
   }
 
   function retry(id) {
-    id = Seerr.positiveId(id)
+    id = Values.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
     http.api("POST", "/request/" + id + "/retry", null, function(res) {
-      actions.afterAction(id, "retry", res, res.ok ? Seerr.normalizeRequest(res.data) : null, false)
+      actions.afterAction(id, "retry", res, res.ok ? Api.normalizeRequest(res.data) : null, false)
     })
     return true
   }
 
   function remove(id) {
-    id = Seerr.positiveId(id)
+    id = Values.positiveId(id)
     if (!id || isBusy(id)) return false
     setBusy(id, true)
     http.api("DELETE", "/request/" + id, null, function(res) {

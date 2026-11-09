@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../model/Seerr.js" as Seerr
+import "../model/notify.js" as Notify
 
 // What survives a restart, in state.json: the request ids already seen and
 // their last statuses, so nothing is announced twice. Also makes the
@@ -9,8 +9,8 @@ import "../model/Seerr.js" as Seerr
 QtObject {
   id: stateFile
 
-  // { url, seen, statuses, primed }: see Seerr.parseState.
-  property var state: Seerr.parseState("")
+  // { url, seen, statuses, primed }: see Notify.parseState.
+  property var state: Notify.parseState("")
   property bool loaded: false
 
   readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omaseerr"
@@ -50,12 +50,12 @@ QtObject {
     atomicWrites: true
     printErrors: false
     onLoaded: {
-      stateFile.state = Seerr.parseState(text())
+      stateFile.state = Notify.parseState(text())
       stateFile.loaded = true
       stateFile.read()
     }
     onLoadFailed: {
-      stateFile.state = Seerr.parseState("")
+      stateFile.state = Notify.parseState("")
       stateFile.loaded = true
     }
   }

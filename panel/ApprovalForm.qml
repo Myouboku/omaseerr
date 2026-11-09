@@ -1,5 +1,5 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/form.js" as Form
 
 // The approval form of one panel: the request, the Radarr/Sonarr servers
 // and the chosen server's options, and the choices made so far.
@@ -31,8 +31,8 @@ QtObject {
       approval.svc.loadServers(type, function(list, error) {
         if (approval.req !== r) return
         if (error) { approval.loading = false; approval.error = error; return }
-        approval.servers = Seerr.formServers(list, r)
-        var server = Seerr.pickServer(list, r)
+        approval.servers = Form.formServers(list, r)
+        var server = Form.pickServer(list, r)
         if (!server) { approval.loading = false; approval.error = approval.ctx.t("approve.noServers"); return }
         approval.selectServer(server.id, m)
       })
@@ -54,7 +54,7 @@ QtObject {
       var media = m !== undefined ? m : approval.media
       var seasons = approval.form && approval.form.seasons ? approval.form.seasons : null
       approval.details = d
-      var f = Seerr.defaultForm(r, server, d, !!(media && media.anime))
+      var f = Form.defaultForm(r, server, d, !!(media && media.anime))
       if (seasons) f.seasons = seasons
       approval.form = f
     })
@@ -70,7 +70,7 @@ QtObject {
   function submit(quick) {
     if (!req || !svc) return
     if (quick) { svc.quickApprove(req.id, false); ctx.nav.go("detail"); return }
-    var problem = Seerr.formProblem(req, form)
+    var problem = Form.formProblem(req, form)
     if (problem) { ctx.nav.flash(ctx.t("approve.problem." + problem), true); return }
     svc.approveWithForm(req, form)
   }

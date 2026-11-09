@@ -1,7 +1,9 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
+import "../model/notify.js" as Notify
 
 // Desktop notifications: new requests (with Details, Approve and Decline
 // buttons), status changes, and the outcome of actions taken from outside
@@ -33,7 +35,7 @@ QtObject {
   function sendNotification(summary, body, imagePath, requestId, withActions, urgency) {
     var argv = [notifySend, "--app-name", "Seerr", "-g", glyph, "-u", urgency || svc.settings.notifyUrgency]
     if (imagePath) argv.push("--image", imagePath)
-    argv.push(safeArg(summary), safeArg(Seerr.neutralizeMarkup(body)))
+    argv.push(safeArg(summary), safeArg(Notify.neutralizeMarkup(body)))
     // The request, and the server it is on: see Actions.actFromOutside.
     var target = String(requestId) + (svc.keyOrigin ? "@" + svc.keyOrigin : "")
     if (withActions && requestId > 0) {
@@ -57,7 +59,7 @@ QtObject {
     if (req.requestedBy) parts.push(svc.t("notify.by").arg(req.requestedBy.name))
     parts.push(req.type === "tv" ? svc.t("type.tv") : svc.t("type.movie"))
     if (req.is4k) parts.push("4K")
-    if (req.type === "tv" && req.seasons.length) parts.push(svc.t("detail.seasonsShort").arg(Seerr.seasonsLabel(req.seasons)))
+    if (req.type === "tv" && req.seasons.length) parts.push(svc.t("detail.seasonsShort").arg(Requests.seasonsLabel(req.seasons)))
     return parts.join(" · ")
   }
 
@@ -115,7 +117,7 @@ QtObject {
   property var _posterQueue: []
 
   function withPoster(m, cb) {
-    var url = m && svc.settings.notifyPoster ? Seerr.posterUrl(m.posterPath, "w185") : ""
+    var url = m && svc.settings.notifyPoster ? Api.posterUrl(m.posterPath, "w185") : ""
     if (!url || !postersReady) { cb(""); return }
     var file = posterDir + "/" + m.posterPath.slice(1)
     _posterQueue.push({ url: url, file: file, cb: cb })

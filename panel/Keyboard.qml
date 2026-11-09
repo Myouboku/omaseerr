@@ -1,5 +1,5 @@
 import QtQuick
-import "../model/Seerr.js" as Seerr
+import "../model/requests.js" as Requests
 
 // The panel's keys: each page's shortcuts, turned into calls on the panel's
 // state (nav) and approval form.
@@ -70,7 +70,7 @@ QtObject {
     if (text === "A") { nav.approve(req, true); event.accepted = true; return }
     if (text === "d" || text === "D") { nav.decline(req); event.accepted = true; return }
     if (key === Qt.Key_Delete || text === "x") { nav.remove(req); event.accepted = true; return }
-    if (text === "R" && req && req.status === Seerr.REQUEST_FAILED) { svc.retry(req.id); event.accepted = true; return }
+    if (text === "R" && req && req.status === Requests.REQUEST_FAILED) { svc.retry(req.id); event.accepted = true; return }
     if (text === "o") { if (svc) svc.openInBrowser(req); event.accepted = true; return }
     if (text === "r") { if (svc) svc.refresh(); event.accepted = true; return }
     if (text === "s") { nav.go("settings"); event.accepted = true; return }
@@ -81,10 +81,10 @@ QtObject {
         event.accepted = true
         return
       }
-      if (text === "f" || text === "F") { nav.cycleView("filter", Seerr.FILTERS, text === "F"); event.accepted = true; return }
-      if (text === "t") { nav.cycleView("mediaType", Seerr.MEDIA_TYPES, shift); event.accepted = true; return }
-      if (text === "S") { nav.cycleView("sort", Seerr.SORTS, false); event.accepted = true; return }
-      if (text === "i") { nav.cycleView("sortDirection", Seerr.DIRECTIONS, false); event.accepted = true; return }
+      if (text === "f" || text === "F") { nav.cycleView("filter", Requests.FILTERS, text === "F"); event.accepted = true; return }
+      if (text === "t") { nav.cycleView("mediaType", Requests.MEDIA_TYPES, shift); event.accepted = true; return }
+      if (text === "S") { nav.cycleView("sort", Requests.SORTS, false); event.accepted = true; return }
+      if (text === "i") { nav.cycleView("sortDirection", Requests.DIRECTIONS, false); event.accepted = true; return }
     }
   }
 }

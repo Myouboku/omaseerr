@@ -5,7 +5,8 @@ import Quickshell
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
-import "../model/Seerr.js" as Seerr
+import "../model/api.js" as Api
+import "../model/requests.js" as Requests
 import "../ui"
 import "../ui/Glyphs.js" as Glyphs
 
@@ -24,7 +25,7 @@ Item {
   function rowDetails(r) {
     if (!r) return ""
     var parts = [(r.type === "tv" ? Glyphs.tv + " " + ctx.t("type.tv") : Glyphs.movie + " " + ctx.t("type.movie"))]
-    if (r.type === "tv" && r.seasons.length) parts.push(ctx.t("detail.seasonsShort").arg(Seerr.seasonsLabel(r.seasons)))
+    if (r.type === "tv" && r.seasons.length) parts.push(ctx.t("detail.seasonsShort").arg(Requests.seasonsLabel(r.seasons)))
     if (r.requestedBy) parts.push(r.requestedBy.name)
     parts.push(ctx.nav.age(ctx.svc && ctx.svc.view.sort === "modified" ? r.updatedAt : r.createdAt))
     return parts.join(" · ")
@@ -83,7 +84,7 @@ Item {
         Layout.preferredWidth: 1
         showLabel: false
         current: ctx.svc ? ctx.svc.view.filter : "pending"
-        options: Seerr.FILTERS.map(function(f) { return { value: f, label: ctx.t("filter." + f) } })
+        options: Requests.FILTERS.map(function(f) { return { value: f, label: ctx.t("filter." + f) } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
         onChanged: function(v) { ctx.nav.cursor = 0; ctx.svc.setView({ filter: v }) }
@@ -93,7 +94,7 @@ Item {
         Layout.preferredWidth: 1
         showLabel: false
         current: ctx.svc ? ctx.svc.view.mediaType : "all"
-        options: Seerr.MEDIA_TYPES.map(function(f) { return { value: f, label: ctx.t("mediaType." + f) } })
+        options: Requests.MEDIA_TYPES.map(function(f) { return { value: f, label: ctx.t("mediaType." + f) } })
         foreground: ctx.foreground
         fontFamily: ctx.fontFamily
         onChanged: function(v) { ctx.nav.cursor = 0; ctx.svc.setView({ mediaType: v }) }
@@ -106,10 +107,10 @@ Item {
         current: ctx.svc ? ctx.svc.view.sort + ":" + ctx.svc.view.sortDirection : "added:desc"
         options: {
           var out = []
-          for (var i = 0; i < Seerr.SORTS.length; i++)
-            for (var j = 0; j < Seerr.DIRECTIONS.length; j++) {
-              var k = Seerr.SORTS[i] + ":" + Seerr.DIRECTIONS[j]
-              out.push({ value: k, label: ctx.t("sortBy." + Seerr.SORTS[i] + "." + Seerr.DIRECTIONS[j]) })
+          for (var i = 0; i < Requests.SORTS.length; i++)
+            for (var j = 0; j < Requests.DIRECTIONS.length; j++) {
+              var k = Requests.SORTS[i] + ":" + Requests.DIRECTIONS[j]
+              out.push({ value: k, label: ctx.t("sortBy." + Requests.SORTS[i] + "." + Requests.DIRECTIONS[j]) })
             }
           return out
         }
@@ -193,12 +194,12 @@ Item {
           is4k: !!req.is4k
           details: listRoot.rowDetails(req)
           showPoster: ctx.cfg.showPosters
-          posterUrl: ctx.cfg.showPosters ? Seerr.posterUrl(media ? media.posterPath : "", "w92") : ""
+          posterUrl: ctx.cfg.showPosters ? Api.posterUrl(media ? media.posterPath : "", "w92") : ""
           posterType: req.type
-          status: Seerr.statusKey(req)
+          status: Requests.statusKey(req)
           statusLabel: ctx.t("statusShort." + row.status)
           statusTone: ctx.statusColor(row.status)
-          actionable: req.status === Seerr.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage && !ctx.offline
+          actionable: req.status === Requests.REQUEST_PENDING && !!ctx.svc && ctx.svc.canManage && !ctx.offline
           busy: !!ctx.svc && ctx.svc.isBusy(req.id)
           approveTooltip: ctx.t("action.approve") + "  (a)\n" + ctx.t("hint.shiftApprove")
           declineTooltip: ctx.t("action.decline") + "  (d)"
