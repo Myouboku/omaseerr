@@ -21,37 +21,54 @@ QtObject {
   property string posterDir: ""
   property bool postersReady: false
 
-  readonly property string notifySend: svc.omarchyPath + "/bin/omarchy-notification-send"
   readonly property string shellCli: svc.omarchyPath + "/bin/omarchy-shell"
   readonly property string glyph: "\u{f0fce}"
-
-  // omarchy-notification-send reads a leading-dash headline or body as an
-  // option; a word joiner keeps text from Seerr from ever looking like one.
-  function safeArg(text) {
-    var s = String(text || "")
-    return s.charAt(0) === "-" ? "⁠" + s : s
-  }
+  // TEMPORARY, until Omarchy can send a notification without its text on a
+  // command line (see "Temporary" in AGENTS.md): omarchy-notification-send
+  // takes it as arguments, and so does the busctl it runs, where any local
+  // account can read it. This helper reads it on stdin and talks to the bus.
+  readonly property string sender: decodeURIComponent(String(Qt.resolvedUrl("dbus-notify.pl")).replace(/^file:\/\//, ""))
 
   function sendNotification(summary, body, imagePath, requestId, withActions, urgency) {
-    var argv = [notifySend, "--app-name", "Seerr", "-g", glyph, "-u", urgency || svc.settings.notifyUrgency]
-    if (imagePath) argv.push("--image", imagePath)
-    argv.push(safeArg(summary), safeArg(Notify.neutralizeMarkup(body)))
+    var spec = { app: "Seerr", glyph: glyph, urgency: urgency || svc.settings.notifyUrgency,
+      summary: summary, body: body, image: imagePath }
     // The request, and the server it is on: see Actions.actFromOutside.
     var target = String(requestId) + (svc.keyOrigin ? "@" + svc.keyOrigin : "")
     if (withActions && requestId > 0) {
       // The card's own click runs the first action, so the harmless one leads.
-      argv.push("--action", svc.t("notify.details"), shellCli, svc.pluginId, "show")
+      spec.actions = [{ label: svc.t("notify.details"), argv: [shellCli, svc.pluginId, "show"] }]
       if (canManage) {
-        argv.push("--action", svc.t("notify.approve"), shellCli, svc.pluginId, "approve")
-        argv.push("--action", svc.t("notify.decline"), shellCli, svc.pluginId, "decline")
+        spec.actions.push({ label: svc.t("notify.approve"), argv: [shellCli, svc.pluginId, "approve"] })
+        spec.actions.push({ label: svc.t("notify.decline"), argv: [shellCli, svc.pluginId, "decline"] })
       }
-      argv.push("--with", target)
+      spec["with"] = [target]
     } else if (requestId > 0) {
-      argv.push("--exec", shellCli, svc.pluginId, "show", target)
+      spec.exec = [shellCli, svc.pluginId, "show", target]
     } else if (requestId === -1) {
-      argv.push("--exec", shellCli, svc.pluginId, "open")
+      spec.exec = [shellCli, svc.pluginId, "open"]
     }
-    Quickshell.execDetached(argv)
+    var proc = senderProcess.createObject(notifier, { payload: JSON.stringify(Notify.notification(spec)) })
+    if (proc) proc.running = true
+  }
+
+  property Component _sender: Component {
+    id: senderProcess
+    Process {
+      id: proc
+      property string payload: ""
+      command: ["perl", notifier.sender]
+      stdinEnabled: true
+      onStarted: {
+        // The notification goes in on stdin; closing it ends the read.
+        write(proc.payload)
+        proc.payload = ""
+        proc.stdinEnabled = false
+      }
+      onExited: function(code) {
+        if (code !== 0) console.warn("omaseerr: a notification could not be sent (dbus-notify.pl exited " + code + ")")
+        Qt.callLater(function() { proc.destroy() })
+      }
+    }
   }
 
   function requestLine(req) {

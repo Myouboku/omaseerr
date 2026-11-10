@@ -76,6 +76,46 @@ function neutralizeMarkup(text) {
   return String(text || "").replace(/</g, "<\u2060").replace(/&/g, "&\u2060")
 }
 
+// A lone surrogate cannot be written as UTF-8, so the sender would refuse the
+// whole notification; it becomes U+FFFD instead.
+function wellFormed(text) {
+  return String(text || "").replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    function(m, before) { return (before || "") + "�" })
+}
+
+var URGENCIES = { low: 0, normal: 1, critical: 2 }
+
+// What service/dbus-notify.pl sends on the bus, from
+// { app, summary, body, glyph, image, urgency: "low"|"normal"|"critical",
+//   actions: [{ label, argv }], with: [args], exec: [argv] }:
+// the same hints omarchy-notification-send would set. `with` is appended to
+// every action's argv, and the card's own click runs the first action, or
+// `exec` when there are no actions. The body is neutralised here.
+function notification(spec) {
+  spec = spec || {}
+  var hints = {}
+  if (spec.glyph) hints["omarchy-glyph"] = String(spec.glyph)
+  if (spec.image) hints["image-path"] = wellFormed(spec.image)
+  var withArgs = (spec["with"] || []).map(wellFormed)
+  var actions = (spec.actions || []).slice(0, 3).map(function(a) {
+    return { label: wellFormed(a.label), argv: (a.argv || []).map(wellFormed).concat(withArgs) }
+  })
+  if (actions.length) {
+    hints["omarchy-actions"] = JSON.stringify(actions)
+    hints["omarchy-exec-argv"] = JSON.stringify(actions[0].argv)
+  } else if (spec.exec && spec.exec.length) {
+    hints["omarchy-exec-argv"] = JSON.stringify(spec.exec.map(wellFormed))
+  }
+  return {
+    app: wellFormed(spec.app),
+    summary: wellFormed(spec.summary),
+    body: wellFormed(neutralizeMarkup(spec.body)),
+    urgency: URGENCIES.hasOwnProperty(spec.urgency) ? URGENCIES[spec.urgency] : 1,
+    timeout: -1,
+    hints: hints
+  }
+}
+
 // Persisted state: { url, seen: [ids], statuses: {id: key}, primed,
 // tracking }. `tracking` says the statuses were kept up to date until now;
 // when they were not (status notifications were off), the first comparison

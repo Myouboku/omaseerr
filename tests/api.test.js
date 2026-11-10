@@ -128,6 +128,10 @@ test("normalizeRequest reads tv fields, sorts seasons, uses 4K status", () => {
 test("normalizeUser falls back through name fields", () => {
   eq(list.requests[3].requestedBy, { id: 5, name: "carol" })
   eq(Api.normalizeUser({ id: 9 }), { id: 9, name: "#9" })
+  // An e-mail address is not a name to show in the bar or a notification.
+  eq(Api.normalizeUser({ id: 7, email: "someone@example.com" }), { id: 7, name: "#7" })
+  eq(Api.normalizeUser({ id: 7, displayName: "Someone@Example.com", email: "someone@example.com" }), { id: 7, name: "#7" })
+  eq(Api.normalizeUser({ id: 7, displayName: "someone@example.com", plexUsername: "neo", email: "someone@example.com" }), { id: 7, name: "neo" })
   eq(Api.normalizeUser({ id: -1 }), null)
 })
 

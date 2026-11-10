@@ -14,6 +14,7 @@ In scope:
 
 - the API key leaving the keyring for anything other than the Seerr origin it was saved for (redirects, URL changes, logs, command lines, files);
 - data from Seerr being interpreted instead of displayed: markup in the panel or notifications, options or commands in notification actions, paths outside the poster cache;
-- notification buttons or IPC calls acting on a request they were not about.
+- notification buttons or IPC calls acting on a request they were not about;
+- data from Seerr (titles, requesters) reaching other local accounts, for instance through the command lines of processes the plugin starts.
 
 Out of scope: weaknesses of Seerr itself (report them to [Seerr](https://github.com/seerr-team/seerr/security)), the API key travelling in clear over plain HTTP to a server outside your network (the panel warns about it), and other programs running as your user, which can already read your keyring.

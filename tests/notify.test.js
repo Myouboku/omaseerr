@@ -61,3 +61,38 @@ test("mergeStatuses keeps what left the recent window and drops settled ones", (
   eq(capped[600], "processing")
   eq(capped[100], undefined)
 })
+
+test("notification sets the hints omarchy-notification-send would", () => {
+  const n = Notify.notification({
+    app: "Seerr", summary: "-New: Dune", body: "by <b>Bob</b>", glyph: "G", image: "/c/p.jpg", urgency: "critical",
+    actions: [{ label: "Details", argv: ["shell", "id", "show"] }, { label: "Approve", argv: ["shell", "id", "approve"] }],
+    with: ["12@https://s.example"]
+  })
+  eq(n.app, "Seerr")
+  eq(n.summary, "-New: Dune")
+  eq(n.body, Notify.neutralizeMarkup("by <b>Bob</b>"))
+  eq(n.urgency, 2)
+  eq(n.timeout, -1)
+  eq(JSON.parse(n.hints["omarchy-actions"]), [
+    { label: "Details", argv: ["shell", "id", "show", "12@https://s.example"] },
+    { label: "Approve", argv: ["shell", "id", "approve", "12@https://s.example"] }])
+  eq(JSON.parse(n.hints["omarchy-exec-argv"]), ["shell", "id", "show", "12@https://s.example"])
+  eq(n.hints["omarchy-glyph"], "G")
+  eq(n.hints["image-path"], "/c/p.jpg")
+})
+
+test("notification without actions: exec, defaults, at most three buttons", () => {
+  const n = Notify.notification({ summary: "x", exec: ["shell", "id", "open"], urgency: "bogus" })
+  eq(n.urgency, 1)
+  eq(JSON.parse(n.hints["omarchy-exec-argv"]), ["shell", "id", "open"])
+  eq(n.hints["omarchy-actions"], undefined)
+  eq(Object.keys(Notify.notification({}).hints), [])
+  const four = Array.from({ length: 4 }, (_, i) => ({ label: "a" + i, argv: ["p"] }))
+  eq(JSON.parse(Notify.notification({ actions: four }).hints["omarchy-actions"]).length, 3)
+})
+
+test("notification text is well-formed UTF-16", () => {
+  const n = Notify.notification({ summary: "a\uD800b\uDC00c 🎬", body: "\uDFFF" })
+  eq(n.summary, "a�b�c 🎬")
+  eq(n.body, "�")
+})

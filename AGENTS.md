@@ -34,7 +34,7 @@ dev/use-mock.sh off     # restores the saved URL, stops the mock, drops its key
 |------|------|
 | `manifest.json` | plugin id, version, settings defaults and schema |
 | `Service.qml` | the one instance per shell: settings, translations, IPC; creates the parts in `service/` and forwards what panels use |
-| `service/` | the service's parts: `Keyring`, `Http` (curl), `Connection`, `Poller`, `RequestStore`, `Actions`, `ArrServers`, `Notifier`, `StateFile` |
+| `service/` | the service's parts: `Keyring`, `Http` (curl), `Connection`, `Poller`, `RequestStore`, `Actions`, `ArrServers`, `Notifier` (with `dbus-notify.pl`, see Temporary), `StateFile` |
 | `Panel.qml` | bar icon and panel (one per monitor); wires the parts below and is the `ctx` they get |
 | `panel/` | one panel's state: `PanelState` (page, cursor, toast, actions), `ApprovalForm`, `Keyboard` |
 | `pages/` | the panel's pages: `ListPage`, `DetailPage`, `ApprovePage`, `SettingsPage` |
@@ -120,6 +120,29 @@ the journal.
   both their folder and those modules, and the name would then depend on
   which one wins. `Panel.qml`, built on the kit's `Panel`, is the
   manifest's entry point; leave it be, but add no other.
+
+## Temporary
+
+- **`service/dbus-notify.pl` replaces `omarchy-notification-send`.** That
+  command takes a notification's headline and body as arguments and passes
+  them on to `busctl` as arguments too, so the titles, requesters and seasons
+  we notify about were readable by any local account in `/proc/<pid>/cmdline`
+  (reported when the plugin was submitted). The Perl helper reads the
+  notification as JSON on stdin and calls
+  `org.freedesktop.Notifications.Notify` itself over the session bus, with the
+  hints the command would set (`omarchy-glyph`, `image-path`,
+  `omarchy-actions`, `omarchy-exec-argv`); `Notify.notification` in
+  `model/notify.js` builds them. Perl only because the `omarchy` package
+  depends on it and its core modules suffice.
+- **Remove it as soon as Omarchy fixes this properly**: a stdin or JSON input
+  for `omarchy-notification-send` that no longer relays the text through
+  `busctl`'s arguments, or a shell API letting plugins post a notification.
+  Then delete `service/dbus-notify.pl` and `dev/check-dbus-notify.py`, send
+  through Omarchy's way again from `Notifier.qml`, and drop `perl` and this
+  section from the README and here. Check for it when Omarchy updates.
+- `dev/check-dbus-notify.py` checks the helper on a private bus:
+  `dbus-run-session -- python3 -I dev/check-dbus-notify.py`. Run it after any
+  change to the helper or to `Notify.notification`.
 
 ## QML pitfalls already hit
 

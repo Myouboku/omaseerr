@@ -27,9 +27,9 @@ Every view works from the keyboard; the keys of each one are listed at its botto
 
 ## Requirements
 
-- [Omarchy](https://omarchy.org) with its shell, which provides the bar, the panel, notifications (`omarchy-notification-send`) and IPC (`omarchy-shell`).
+- [Omarchy](https://omarchy.org) with its shell, which provides the bar, the panel, the notification daemon and IPC (`omarchy-shell`).
 - `secret-tool` (package `libsecret`) and a Secret Service provider such as gnome-keyring or KeePassXC, to keep the API key.
-- `curl` and `bash`, for API calls and poster downloads.
+- `curl` and `bash`, for API calls and poster downloads; `perl`, to send notifications (see below).
 - A [Seerr](https://github.com/seerr-team/seerr) instance and its API key. Network access to `image.tmdb.org` for posters, unless both poster settings are off.
 
 Omarchy ships all of these except Seerr; nothing else is installed.
@@ -141,7 +141,10 @@ curl -X POST 'http://127.0.0.1:5055/__mock/new?type=tv'   # a new pending reques
 docker compose -f dev/compose.yaml up -d                  # a real Seerr, Jellyfin, Radarr, Sonarr
 dev/use-mock.sh on [--hostile]          # point the running plugin at a fake Seerr on :5056
 dev/use-mock.sh off                     # back to your own URL; your key never leaves for the mock
+dbus-run-session -- python3 -I dev/check-dbus-notify.py   # the notification sender, on a private bus (python-gobject)
 ```
+
+Notifications are sent by `service/dbus-notify.pl`, which reads them on stdin and calls the daemon over D-Bus, rather than by `omarchy-notification-send`: that one takes the text as arguments, and any local account can read a process's arguments, so request titles and requesters would leak to them. This is temporary, until Omarchy offers a way to send a notification without putting its text on a command line.
 
 Link the checkout as a plugin with `ln -s "$PWD" ~/.config/omarchy/plugins/myouboku.omaseerr`, then `omarchy plugin enable myouboku.omaseerr --section right`. After changing a QML file, `omarchy restart shell` is the reliable way to reload it: the shell keeps already-compiled QML types in memory.
 

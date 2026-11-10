@@ -188,7 +188,14 @@ function normalizeUser(raw) {
   if (!raw || typeof raw !== "object") return null
   var id = Values.positiveId(raw.id)
   if (!id) return null
-  var name = Values.str(raw.displayName || raw.username || raw.plexUsername || raw.jellyfinUsername || raw.email || "", 120)
+  // Never the e-mail address, which Seerr's own displayName falls back to.
+  var email = String(raw.email || "").trim().toLowerCase()
+  var fields = [raw.displayName, raw.username, raw.plexUsername, raw.jellyfinUsername]
+  var name = ""
+  for (var i = 0; i < fields.length && !name; i++) {
+    var v = Values.str(fields[i] || "", 120)
+    if (v && v.trim().toLowerCase() !== email) name = v
+  }
   return { id: id, name: name || ("#" + id) }
 }
 
