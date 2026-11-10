@@ -321,6 +321,19 @@ QtObject {
       if (nav.svc.connection === "connected" && nav.page === "detail" && nav.detailId && !nav.detailReq)
         nav.openDetailById(nav.detailId)
     }
+    // Another URL is another server: the request on display, or awaiting
+    // confirmation, belongs to the one left behind, and the same id there
+    // names an unrelated request. Its pages are left and its id forgotten,
+    // so no action can reach the new server through them.
+    function onBaseUrlChanged() {
+      nav.confirmOpen = false
+      nav.confirmId = 0
+      nav.detailId = 0
+      nav._detailFallback = null
+      nav.detailFromCursor = false
+      nav.cursor = 0
+      if (nav.page === "detail" || nav.page === "approve") nav.go("list")
+    }
     function onRowsChanged() {
       if (nav.cursor >= nav.visibleRows.length) nav.cursor = Cursor.clampIndex(nav.cursor, nav.visibleRows.length)
     }

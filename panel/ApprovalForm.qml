@@ -39,15 +39,28 @@ QtObject {
     })
   }
 
-  // Calls under way when Seerr went down are dropped on the retry: a form
-  // still loading starts over once Seerr answers again.
   property Connections _service: Connections {
     target: approval.svc
     ignoreUnknownSignals: true
+    // Another URL is another server, where the same id names an unrelated
+    // request: the form is dropped, so nothing of it can be submitted there
+    // (the panel leaves the page, see PanelState).
+    function onBaseUrlChanged() { approval.clear() }
+    // Calls under way when Seerr went down are dropped on the retry: a form
+    // still loading starts over once Seerr answers again.
     function onConnectionChanged() {
       if (approval.svc.connection === "connected" && approval.loading && approval.req && approval.ctx.nav.page === "approve")
         approval.start(approval.req)
     }
+  }
+
+  function clear() {
+    req = null
+    servers = []
+    details = null
+    form = null
+    loading = false
+    error = ""
   }
 
   function selectServer(serverId, m) {
