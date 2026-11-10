@@ -131,13 +131,16 @@ QtObject {
   }
 
   // Posters for notifications are cached files: the daemon wants a path.
+  // Their download is not a Seerr call, so a URL change does not drop it:
+  // a notification whose poster arrives after one is about the server left
+  // behind, and would be sent naming the new one, so it is dropped.
   property var _posterQueue: []
 
   function withPoster(m, cb) {
     var url = m && svc.settings.notifyPoster ? Api.posterUrl(m.posterPath, "w185") : ""
     if (!url || !postersReady) { cb(""); return }
     var file = posterDir + "/" + m.posterPath.slice(1)
-    _posterQueue.push({ url: url, file: file, cb: cb })
+    _posterQueue.push({ url: url, file: file, cb: cb, origin: svc.keyOrigin })
     if (!posterFetch.running) nextPoster()
   }
 
@@ -159,7 +162,7 @@ QtObject {
     onExited: function(code) {
       var job = posterFetch.job
       notifier._posterQueue.shift()
-      if (job) job.cb(code === 0 ? job.file : "")
+      if (job && job.origin === notifier.svc.keyOrigin) job.cb(code === 0 ? job.file : "")
       notifier.nextPoster()
     }
   }
